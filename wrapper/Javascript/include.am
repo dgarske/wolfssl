@@ -1,0 +1,18 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+EXTRA_DIST+= wrapper/Javascipt/README.md \
+			 wrapper/Javascipt/Makefile \
+			 wrapper/Javascipt/Makefile.config \
+			 wrapper/Javascipt/user_settings.h \
+			 wrapper/Javascipt/wcjs/index.html \
+			 wrapper/Javascipt/wcjs/Makefile \
+			 wrapper/Javascipt/wcjs/wcjs-test.c \
+			 wrapper/Javascipt/wcjs/wcjs.c \
+			 wrapper/Javascipt/wcjs/wcjs.h \
+			 wrapper/Javascipt/wcjs/wcjslogging.h \
+			 wrapper/Javascipt/wcjs/wcjswrap-test-node.js \
+			 wrapper/Javascipt/wcjs/wcjswrap-test.js \
+			 wrapper/Javascipt/wcjs/wcjswrap.js \
+			 wrapper/Javascipt/wcjs/wolfcrypt_template.js
