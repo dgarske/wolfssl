@@ -2,17 +2,17 @@
 # included from Top Level Makefile.am
 # All paths should be given relative to the root
 
-EXTRA_DIST+= wrapper/Javascipt/README.md \
-			 wrapper/Javascipt/Makefile \
-			 wrapper/Javascipt/Makefile.config \
-			 wrapper/Javascipt/user_settings.h \
-			 wrapper/Javascipt/wcjs/index.html \
-			 wrapper/Javascipt/wcjs/Makefile \
-			 wrapper/Javascipt/wcjs/wcjs-test.c \
-			 wrapper/Javascipt/wcjs/wcjs.c \
-			 wrapper/Javascipt/wcjs/wcjs.h \
-			 wrapper/Javascipt/wcjs/wcjslogging.h \
-			 wrapper/Javascipt/wcjs/wcjswrap-test-node.js \
-			 wrapper/Javascipt/wcjs/wcjswrap-test.js \
-			 wrapper/Javascipt/wcjs/wcjswrap.js \
-			 wrapper/Javascipt/wcjs/wolfcrypt_template.js
+EXTRA_DIST+= wrapper/Javascript/README.md \
+			 wrapper/Javascript/Makefile \
+			 wrapper/Javascript/Makefile.config \
+			 wrapper/Javascript/user_settings.h \
+			 wrapper/Javascript/wcjs/index.html \
+			 wrapper/Javascript/wcjs/Makefile \
+			 wrapper/Javascript/wcjs/wcjs-test.c \
+			 wrapper/Javascript/wcjs/wcjs.c \
+			 wrapper/Javascript/wcjs/wcjs.h \
+			 wrapper/Javascript/wcjs/wcjslogging.h \
+			 wrapper/Javascript/wcjs/wcjswrap-test-node.js \
+			 wrapper/Javascript/wcjs/wcjswrap-test.js \
+			 wrapper/Javascript/wcjs/wcjswrap.js \
+			 wrapper/Javascript/wcjs/wolfcrypt_template.js
