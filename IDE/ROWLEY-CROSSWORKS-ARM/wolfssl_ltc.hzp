@@ -371,7 +371,7 @@
       </folder>
     </folder>
     <folder Name="System Files">
-      <file file_name="Kinetis_FlashPlacement.xml" />
+      <file file_name="Kinetis_FlashPlacement_K82.xml" />
     </folder>
     <configuration
       Name="Flash"
@@ -428,7 +428,7 @@
       </folder>
     </folder>
     <folder Name="System Files">
-      <file file_name="Kinetis_FlashPlacement.xml" />
+      <file file_name="Kinetis_FlashPlacement_K82.xml" />
     </folder>
     <configuration
       Name="Flash"
@@ -513,7 +513,7 @@
     arm_target_debug_interface_type="ADIv5"
     c_preprocessor_definitions="FREESCALE;K_SERIES;CPU_MK82FN256VLL15;FREESCALE_KSDK_BM;USE_NXP_MMCAU;USE_NXP_LTC"
     hidden="Yes"
-    linker_section_placement_file="$(ProjectDir)/Kinetis_FlashPlacement.xml" />
+    linker_section_placement_file="$(ProjectDir)/Kinetis_FlashPlacement_K82.xml" />
   <configuration
     Name="V4"
     arm_architecture="v4T"
