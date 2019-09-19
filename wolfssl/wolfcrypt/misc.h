@@ -91,6 +91,9 @@ void ato24(const byte* c, word32* u24);
 void ato32(const byte* c, word32* u32);
 word32 btoi(byte b);
 
+WOLFSSL_LOCAL char hexchar_to_byte(char ch);
+WOLFSSL_LOCAL int  hex_to_byte(char* in);
+WOLFSSL_LOCAL int  byte_to_hex(byte in, char* out);
 
 WOLFSSL_LOCAL byte ctMaskGT(int a, int b);
 WOLFSSL_LOCAL byte ctMaskGTE(int a, int b);

@@ -318,6 +318,45 @@ WC_STATIC WC_INLINE word32 btoi(byte b)
 }
 #endif
 
+WC_STATIC WC_INLINE char hexchar_to_byte(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        ch -= '0';
+    else if (ch >= 'A' && ch <= 'F')
+        ch -= 'A' - 10;
+    else if (ch >= 'a' && ch <= 'f')
+        ch -= 'a' - 10;
+    else
+        ch = -1; /* error case */
+    return ch;
+}
+
+/* in assumes 2 chars */
+WC_STATIC WC_INLINE int hex_to_byte(char* in)
+{
+    int res = hexchar_to_byte(in[0]);
+    if (res > 0) {
+        char ch = hexchar_to_byte(in[1]);
+        if (ch > 0) {
+            res |= (ch << 4);
+        }
+    }
+    return res;
+}
+
+WC_STATIC WC_INLINE int byte_to_hex(byte in, char* out)
+{
+    static const char kHexChar[] = { '0', '1', '2', '3', '4', '5', '6', '7',
+                                     '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+    if (out == NULL)
+        return -1;
+
+    out[0] = kHexChar[in >> 4];
+    out[1] = kHexChar[in & 0xf];
+
+    return 0;
+}
 
 #ifndef WOLFSSL_NO_CT_OPS
 /* Constant time - mask set when a > b. */
@@ -386,7 +425,6 @@ WC_STATIC WC_INLINE byte ctSetLTE(int a, int b)
     return ((word32)a - b - 1) >> 31;
 }
 #endif
-
 
 #undef WC_STATIC
 

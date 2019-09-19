@@ -43602,9 +43602,6 @@ int wolfSSL_ASN1_STRING_print_ex(WOLFSSL_BIO *out, WOLFSSL_ASN1_STRING *str,
 
     /* dump hex */
     if (flags & ASN1_STRFLGS_DUMP_ALL){
-        static const char hex_char[] = { '0', '1', '2', '3', '4', '5', '6',
-                                         '7','8', '9', 'A', 'B', 'C', 'D',
-                                         'E', 'F' };
         char hex_tmp[4];
         char *str_ptr, *str_end;
 
@@ -43620,10 +43617,8 @@ int wolfSSL_ASN1_STRING_print_ex(WOLFSSL_BIO *out, WOLFSSL_ASN1_STRING *str,
         }
         str_len++;
         if (flags & ASN1_STRFLGS_DUMP_DER){
-            hex_tmp[0] = hex_char[str->type >> 4];
-            hex_tmp[1] = hex_char[str->type & 0xf];
-            hex_tmp[2] = hex_char[str->length >> 4];
-            hex_tmp[3] = hex_char[str->length & 0xf];
+            byte_to_hex(str->type, &hex_tmp[0]);
+            byte_to_hex(str->length, &hex_tmp[2]);
             if (wolfSSL_BIO_write(out, hex_tmp, 4) != 4){
                 goto err_exit;
             }
@@ -43634,8 +43629,7 @@ int wolfSSL_ASN1_STRING_print_ex(WOLFSSL_BIO *out, WOLFSSL_ASN1_STRING *str,
         str_ptr = str->data;
         str_end = str->data + str->length;
         while (str_ptr < str_end){
-            hex_tmp[0] = hex_char[*str_ptr >> 4];
-            hex_tmp[1] = hex_char[*str_ptr & 0xf];
+            byte_to_hex(*str_ptr, &hex_tmp[0]);
             if (wolfSSL_BIO_write(out, hex_tmp, 2) != 2){
                 goto err_exit;
             }

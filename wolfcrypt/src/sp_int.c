@@ -219,18 +219,11 @@ int sp_read_radix(sp_int* a, const char* in, int radix)
     if (err == MP_OKAY) {
         a->dp[0] = 0;
         for (i = (int)(XSTRLEN(in) - 1); i >= 0; i--) {
-            ch = in[i];
-            if (ch >= '0' && ch <= '9')
-                ch -= '0';
-            else if (ch >= 'A' && ch <= 'F')
-                ch -= 'A' - 10;
-            else if (ch >= 'a' && ch <= 'f')
-                ch -= 'a' - 10;
-            else {
+            ch = hexchar_to_byte(in[i]);
+            if (ch < 0) {
                 err = MP_VAL;
                 break;
             }
-
             a->dp[k] |= ((sp_int_digit)ch) << j;
             j += 4;
             if (k >= SP_INT_DIGITS - 1) {
