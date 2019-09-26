@@ -4,7 +4,7 @@
     <configuration
       Name="Common"
       build_output_file_name="$(OutDir)/$(ProjectName)$(LibExt)$(LIB)"
-      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS;USE_NXP_MMCAU;USE_NXP_LTC"
+      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS;USE_NXP_MMCAU"
       c_user_include_directories=".;../;../../;./drivers;./mmcau_2.0.0;./CMSIS/Include"
       project_directory=""
       project_type="Library" />
@@ -326,7 +326,7 @@
     <configuration
       Name="Common"
       Placement="Flash"
-      Target="MK82FN256xxx15"
+      Target="MK64FN1M0xxx12"
       arm_architecture="v7EM"
       arm_core_type="Cortex-M4"
       arm_fpu_type="FPv4-SP-D16"
@@ -335,15 +335,16 @@
       arm_linker_irq_stack_size="0"
       arm_linker_stack_size="30720"
       arm_simulator_memory_simulation_filename="$(TargetsDir)/Kinetis/KinetisSimulatorMemory.dll"
-      arm_simulator_memory_simulation_parameter="MK82FN256xxx15;0x40000;0x0;0x0;0x40000;4"
+      arm_simulator_memory_simulation_parameter="MK64FN1M0xxx12;0x100000;0x0;0x0;0x40000;4"
       arm_target_loader_applicable_loaders="Flash"
       arm_target_loader_default_loader="Flash"
-      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS;USE_NXP_MMCAU;USE_NXP_LTC"
+      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS;USE_NXP_MMCAU"
       c_user_include_directories=".;./drivers;./mmcau_2.0.0;./CMSIS/Include;../;../../;$(TargetsDir);$(TargetsDir)/Kinetis;$(TargetsDir)/Kinetis/CMSIS;$(TargetsDir)/Kinetis/CMSIS/include;$(TargetsDir)/CMSIS_3/CMSIS/include"
-      debug_register_definition_file="$(TargetsDir)/Kinetis/MK82F25615_Peripherals.xml"
-      linker_memory_map_file="$(TargetsDir)/Kinetis/MK82FN256xxx15_MemoryMap.xml"
+      debug_register_definition_file="$(TargetsDir)/Kinetis/MK64F12_Peripherals.xml"
+      linker_memory_map_file="$(TargetsDir)/Kinetis/MK64FN1M0xxx12_MemoryMap.xml"
       linker_memory_map_macros="FLASHSIZE=0x40000;SRAMSIZE=0x40000"
       linker_output_format="bin"
+      macros="DeviceVectorsFile=MK64F12.vec"
       project_dependencies="libwolfssl_ltc"
       project_type="Executable"
       property_groups_file_path="$(TargetsDir)/Kinetis/propertyGroups.xml"
@@ -375,13 +376,14 @@
     </folder>
     <configuration
       Name="Flash"
-      arm_target_flash_loader_file_path="$(TargetsDir)/Kinetis/Release/Loader3.elf" />
+      arm_target_flash_loader_file_path="$(TargetsDir)/Kinetis/Release/Loader.elf"
+      arm_target_loader_parameter="4" />
   </project>
   <project Name="benchmark_ltc">
     <configuration
       Name="Common"
       Placement="Flash"
-      Target="MK82FN256xxx15"
+      Target="MK64FN1M0xxx12"
       arm_architecture="v7EM"
       arm_core_type="Cortex-M4"
       arm_fpu_type="FPv4-SP-D16"
@@ -390,15 +392,16 @@
       arm_linker_irq_stack_size="0"
       arm_linker_stack_size="30720"
       arm_simulator_memory_simulation_filename="$(TargetsDir)/Kinetis/KinetisSimulatorMemory.dll"
-      arm_simulator_memory_simulation_parameter="MK82FN256xxx15;0x40000;0x0;0x0;0x40000;4"
+      arm_simulator_memory_simulation_parameter="MK64FN1M0xxx12;0x100000;0x0;0x0;0x40000;4"
       arm_target_loader_applicable_loaders="Flash"
       arm_target_loader_default_loader="Flash"
-      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS"
+      c_preprocessor_definitions="WOLFSSL_ROWLEY_ARM;WOLFSSL_USER_SETTINGS;USE_NXP_MMCAU"
       c_user_include_directories=".;./drivers;./mmcau_2.0.0;./CMSIS/Include;../;../../;$(TargetsDir);$(TargetsDir)/Kinetis;$(TargetsDir)/Kinetis/CMSIS;$(TargetsDir)/Kinetis/CMSIS/include;$(TargetsDir)/CMSIS_3/CMSIS/include"
-      debug_register_definition_file="$(TargetsDir)/Kinetis/MK82F25615_Peripherals.xml"
-      linker_memory_map_file="$(TargetsDir)/Kinetis/MK82FN256xxx15_MemoryMap.xml"
+      debug_register_definition_file="$(TargetsDir)/Kinetis/MK64F12_Peripherals.xml"
+      linker_memory_map_file="$(TargetsDir)/Kinetis/MK64FN1M0xxx12_MemoryMap.xml"
       linker_memory_map_macros="FLASHSIZE=0x40000;SRAMSIZE=0x40000"
       linker_output_format="bin"
+      macros="DeviceVectorsFile=MK64F12.vec"
       project_dependencies="libwolfssl_ltc"
       project_type="Executable"
       property_groups_file_path="$(TargetsDir)/Kinetis/propertyGroups.xml"
@@ -428,11 +431,12 @@
       </folder>
     </folder>
     <folder Name="System Files">
-      <file file_name="Kinetis_FlashPlacement.xml" />
+      <file file_name="Kinetis_FlashPlacement_K82.xml" />
     </folder>
     <configuration
       Name="Flash"
-      arm_target_flash_loader_file_path="$(TargetsDir)/Kinetis/Release/Loader3.elf" />
+      arm_target_flash_loader_file_path="$(TargetsDir)/Kinetis/Release/Loader.elf"
+      arm_target_loader_parameter="4" />
   </project>
   <configuration
     Name="ARM"
@@ -511,7 +515,7 @@
   <configuration
     Name="Kinetis"
     arm_target_debug_interface_type="ADIv5"
-    c_preprocessor_definitions="FREESCALE;K_SERIES;CPU_MK82FN256VLL15;FREESCALE_KSDK_BM;USE_NXP_MMCAU;USE_NXP_LTC"
+    c_preprocessor_definitions="FREESCALE;K_SERIES;CPU_MK82FN256VLL15;USE_NXP_MMCAU"
     hidden="Yes"
     linker_section_placement_file="$(ProjectDir)/Kinetis_FlashPlacement.xml" />
   <configuration
