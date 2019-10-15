@@ -1,4 +1,4 @@
- /* Copyright (C) 2006-2018 wolfSSL Inc.
+ /* Copyright (C) 2006-2019 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -50,9 +50,6 @@ extern "C" {
 /* ------------------------------------------------------------------------- */
 /* Math Configuration */
 /* ------------------------------------------------------------------------- */
-#undef  USE_FAST_MATH
-#define USE_FAST_MATH
-
 #undef  SIZEOF_LONG_LONG
 #define SIZEOF_LONG_LONG 8
 
@@ -71,14 +68,15 @@ extern "C" {
 #undef WOLFSSL_SP
 #if 0
     #define WOLFSSL_SP
-    #define WOLFSSL_SP_SMALL
+    #define WOLFSSL_SP_SMALL      /* use smaller version of code */
     #define WOLFSSL_HAVE_SP_RSA
     #define WOLFSSL_HAVE_SP_DH
     #define WOLFSSL_HAVE_SP_ECC
     #define WOLFSSL_SP_CACHE_RESISTANT
-    //#define WOLFSSL_SP_MATH
+    //#define WOLFSSL_SP_MATH     /* only SP math - eliminates fast math code */
 
     /* 64 or 32 bit version */
+    //#define WOLFSSL_SP_ASM      /* required if using the ASM versions */
     //#define WOLFSSL_SP_ARM32_ASM
     //#define WOLFSSL_SP_ARM64_ASM
 #endif
@@ -171,9 +169,6 @@ extern "C" {
     #undef  ECC_SHAMIR
     #define ECC_SHAMIR
 
-    #undef TFM_ECC256
-    #define TFM_ECC256
-
     /* Reduces heap usage, but slower */
     #undef  ECC_TIMING_RESISTANT
     #define ECC_TIMING_RESISTANT
@@ -221,7 +216,7 @@ extern "C" {
     #if 1
         #define WOLFSSL_DH_CONST
         #define HAVE_FFDHE_2048
-        #define HAVE_FFDHE_4096
+        //#define HAVE_FFDHE_4096
         //#define HAVE_FFDHE_6144
         //#define HAVE_FFDHE_8192
     #endif
@@ -238,10 +233,10 @@ extern "C" {
 /* AES */
 #undef NO_AES
 #if 1
-    #undef  HAVE_AES_CBC
-    #define HAVE_AES_CBC
+	#undef  HAVE_AES_CBC
+	#define HAVE_AES_CBC
 
-    #undef  HAVE_AESGCM
+	#undef  HAVE_AESGCM
     #define HAVE_AESGCM
 
     /* GCM Method: GCM_SMALL, GCM_WORD32 or GCM_TABLE */
@@ -303,7 +298,7 @@ extern "C" {
 #undef NO_SHA
 #if 1
     /* 1k smaller, but 25% slower */
-    #define USE_SLOW_SHA
+    //#define USE_SLOW_SHA
 #else
     #define NO_SHA
 #endif
@@ -331,11 +326,6 @@ extern "C" {
     #undef  WOLFSSL_SHA384
     #if 1
         #define WOLFSSL_SHA384
-    #endif
-
-    #undef WOLFSSL_SHA224
-    #if 1
-        #define WOLFSSL_SHA224
     #endif
 
     /* over twice as small, but 50% slower */
@@ -379,8 +369,8 @@ extern "C" {
 #undef  USE_CERT_BUFFERS_2048
 #define USE_CERT_BUFFERS_2048
 
-#undef  USE_CERT_BUFFERS_1024
-#define USE_CERT_BUFFERS_1024
+//#undef  USE_CERT_BUFFERS_1024
+//#define USE_CERT_BUFFERS_1024
 
 #undef  USE_CERT_BUFFERS_256
 #define USE_CERT_BUFFERS_256
@@ -392,7 +382,7 @@ extern "C" {
 
 #undef DEBUG_WOLFSSL
 #undef NO_ERROR_STRINGS
-#if 1
+#if 0
     #define DEBUG_WOLFSSL
 #else
     #if 0
@@ -459,13 +449,13 @@ extern "C" {
 /* ------------------------------------------------------------------------- */
 
 /* Override Current Time */
-/* Allows custom "custom_time()" function to be used for benchmark */
-//#define WOLFSSL_USER_CURRTIME
-//#define WOLFSSL_GMTIME
-//#define USER_TICKS
-extern unsigned long my_time(unsigned long* timer);
 #if 0
-    #define XTIME my_time
+/* Allows custom "custom_time()" function to be used for benchmark */
+#define WOLFSSL_USER_CURRTIME
+#define WOLFSSL_GMTIME
+#define USER_TICKS
+extern unsigned long my_time(unsigned long* timer);
+#define XTIME my_time
 #endif
 
 
@@ -474,11 +464,13 @@ extern unsigned long my_time(unsigned long* timer);
 /* ------------------------------------------------------------------------- */
 
 /* Seed Source */
+#if 0
 /* Size of returned HW RNG value */
-//#define CUSTOM_RAND_TYPE      unsigned int
+#define CUSTOM_RAND_TYPE      unsigned int
 extern unsigned int my_rng_seed_gen(void);
 #undef  CUSTOM_RAND_GENERATE
-//#define CUSTOM_RAND_GENERATE  my_rng_seed_gen
+#define CUSTOM_RAND_GENERATE  my_rng_seed_gen
+#endif
 
 /* Choose RNG method */
 #if 1
@@ -574,14 +566,11 @@ extern unsigned int my_rng_seed_gen(void);
     #define NO_SESSION_CACHE
 #endif
 
-#undef HAVE_EXTENDED_MASTER
+#undef  HAVE_EXTENDED_MASTER
 #define HAVE_EXTENDED_MASTER
 
-#undef HAVE_TRUNCATED_HMAC
+#undef  HAVE_TRUNCATED_HMAC
 #define HAVE_TRUNCATED_HMAC
-
-#undef WOLFSSL_ALLOW_TLSV10
-#define WOLFSSL_ALLOW_TLSV10
 
 #undef HAVE_SNI
 #if 1
@@ -592,10 +581,6 @@ extern unsigned int my_rng_seed_gen(void);
 #if 1
     /* Set maximum fragment size. */
     #define HAVE_MAX_FRAGMENT
-#endif
-
-#if 1
-    #define FP_MAX_BITS_ECC 512
 #endif
 
 /* ------------------------------------------------------------------------- */
@@ -659,25 +644,25 @@ extern unsigned int my_rng_seed_gen(void);
 #define NO_DEV_RANDOM
 
 #undef  NO_DSA
-//#define NO_DSA
+#define NO_DSA
 
 #undef  NO_RC4
-//#define NO_RC4
+#define NO_RC4
 
 #undef  NO_OLD_TLS
-//#define NO_OLD_TLS
+#define NO_OLD_TLS
 
 #undef  NO_HC128
-//#define NO_HC128
+#define NO_HC128
 
 #undef  NO_RABBIT
-//#define NO_RABBIT
+#define NO_RABBIT
 
 #undef  NO_PSK
 //#define NO_PSK
 
 #undef  NO_MD4
-//#define NO_MD4
+#define NO_MD4
 
 #undef  NO_PWDBASED
 #define NO_PWDBASED
