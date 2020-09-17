@@ -37459,7 +37459,7 @@ static int CopyX509NameToCertName(WOLFSSL_X509_NAME* n, CertName* cName)
         int hashType;
         int sigType = WOLFSSL_FAILURE;
 
-    #if !defined(NO_PWDBASED)
+    #if !defined(NO_PWDBASED) && defined(OPENSSL_EXTRA)
         /* Convert key type and hash algorithm to a signature algorithm */
         if (wolfSSL_EVP_get_hashinfo(md, &hashType, NULL) == WOLFSSL_FAILURE) {
             return WOLFSSL_FAILURE;
