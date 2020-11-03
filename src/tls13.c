@@ -1298,7 +1298,7 @@ end:
         return (word32) mqxTime.SECONDS * 1000;
     }
 #elif defined(FREESCALE_FREE_RTOS) || defined(FREESCALE_KSDK_FREERTOS)
-    #include "include/task.h"
+    #include "task.h"
 
     /* The time in milliseconds.
      * Used for tickets to represent difference between when first seen and when
