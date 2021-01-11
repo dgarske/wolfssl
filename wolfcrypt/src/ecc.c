@@ -2927,6 +2927,7 @@ static int ecc_key_tmp_init(ecc_key* key, void* heap)
    ) {
        err = MEMORY_E;
    }
+   (void)heap;
 
    return err;
 }

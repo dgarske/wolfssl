@@ -7446,9 +7446,11 @@ int wolfSSL_CTX_check_private_key(const WOLFSSL_CTX* ctx)
                                   ctx->privateKeyId, ctx->heap,
                                   ctx->privateKeyDevId);
         if (ret == 0 && der->keyOID == RSAk) {
+        #ifndef NO_RSA
             ret = wc_CryptoCb_RsaCheckPrivKey((RsaKey*)pkey, der->publicKey,
                                               der->pubKeySize);
             wc_FreeRsaKey((RsaKey*)pkey);
+        #endif
         }
         else if (ret == 0 && der->keyOID == ECDSAk) {
             ret = wc_CryptoCb_EccCheckPrivKey((ecc_key*)pkey, der->publicKey,

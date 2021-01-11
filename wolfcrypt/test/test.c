@@ -8391,14 +8391,16 @@ static int aes_cbc_test(void)
 
 WOLFSSL_TEST_SUBROUTINE int aes_test(void)
 {
-#if defined(HAVE_AES_CBC) || defined(WOLFSSL_AES_COUNTER) || defined(WOLFSSL_AES_DIRECT)
+#if defined(HAVE_AES_CBC) || defined(WOLFSSL_AES_COUNTER) || \
+    (defined(WOLFSSL_AES_DIRECT) && defined(WOLFSSL_AES_256))
 #ifdef WOLFSSL_SMALL_STACK
     Aes *enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES);
 #else
     Aes enc[1];
 #endif
     byte cipher[AES_BLOCK_SIZE * 4];
-#if defined(HAVE_AES_DECRYPT) || defined(WOLFSSL_AES_COUNTER) || defined(WOLFSSL_AES_DIRECT)
+#if defined(HAVE_AES_DECRYPT) || defined(WOLFSSL_AES_COUNTER) || \
+    (defined(WOLFSSL_AES_DIRECT) && defined(WOLFSSL_AES_256))
 #ifdef WOLFSSL_SMALL_STACK
     Aes *dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES);
 #else
@@ -8427,11 +8429,13 @@ WOLFSSL_TEST_SUBROUTINE int aes_test(void)
     WOLFSSL_SMALL_STACK_STATIC const byte iv[]  = "1234567890abcdef   ";  /* align */
 
 #ifdef WOLFSSL_SMALL_STACK
-#if defined(HAVE_AES_CBC) || defined(WOLFSSL_AES_COUNTER) || defined(WOLFSSL_AES_DIRECT)
+#if defined(HAVE_AES_CBC) || defined(WOLFSSL_AES_COUNTER) || \
+    (defined(WOLFSSL_AES_DIRECT) && defined(WOLFSSL_AES_256))
     if (enc == NULL)
         ERROR_OUT(-5948, out);
 #endif
-#if defined(HAVE_AES_DECRYPT) || defined(WOLFSSL_AES_COUNTER) || defined(WOLFSSL_AES_DIRECT)
+#if defined(HAVE_AES_DECRYPT) || defined(WOLFSSL_AES_COUNTER) || \
+    (defined(WOLFSSL_AES_DIRECT) && defined(WOLFSSL_AES_256))
     if (dec == NULL)
         ERROR_OUT(-5949, out);
 #endif
