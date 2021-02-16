@@ -715,10 +715,10 @@ static const char* bench_desc_words[][9] = {
 #endif
 #endif
 
-#if (!defined(NO_RSA) && !defined(WOLFSSL_RSA_VERIFY_ONLY)) || !defined(NO_DH) \
-                        || defined(WOLFSSL_KEY_GEN) || defined(HAVE_ECC) \
-                        || defined(HAVE_CURVE25519) || defined(HAVE_ED25519) \
-                        || defined(HAVE_CURVE448) || defined(HAVE_ED448)
+#if (!defined(NO_RSA) && !defined(WOLFSSL_RSA_VERIFY_ONLY) && !defined(WC_NO_RNG)) \
+        || !defined(NO_DH) || defined(WOLFSSL_KEY_GEN) || defined(HAVE_ECC) \
+        || defined(HAVE_CURVE25519) || defined(HAVE_ED25519) \
+        || defined(HAVE_CURVE448) || defined(HAVE_ED448)
     #define HAVE_LOCAL_RNG
     static THREAD_LS_T WC_RNG gRng;
 #endif
@@ -4704,7 +4704,7 @@ exit_rsa_verify:
 
 void bench_rsa(int doAsync)
 {
-#ifndef WOLFSSL_RSA_VERIFY_ONLY
+#ifndef WOLFSSL_RSA_PUBLIC_ONLY
     int         ret = 0;
 #endif
     int         i;

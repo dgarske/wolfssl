@@ -12615,7 +12615,7 @@ done:
 
 #if defined(WC_RSA_PSS) && !defined(HAVE_FIPS_VERSION) /* not supported with FIPSv1 */
 /* Need to create known good signatures to test with this. */
-#ifndef WOLFSSL_RSA_VERIFY_ONLY
+#if !defined(WOLFSSL_RSA_VERIFY_ONLY) && !defined(WOLFSSL_RSA_PUBLIC_ONLY)
 static int rsa_pss_test(WC_RNG* rng, RsaKey* key)
 {
     byte             digest[WC_MAX_DIGEST_SIZE];
@@ -12933,7 +12933,7 @@ exit_rsa_pss:
 
     return ret;
 }
-#endif /* WOLFSSL_RSA_VERIFY_ONLY */
+#endif /* !WOLFSSL_RSA_VERIFY_ONLY && !WOLFSSL_RSA_PUBLIC_ONLY */
 #endif
 
 #ifdef WC_RSA_NO_PADDING
@@ -13171,17 +13171,25 @@ static int rsa_even_mod_test(WC_RNG* rng, RsaKey* key)
     word32 inLen   = 0;
     word32 idx     = 0;
     word32 outSz   = RSA_TEST_BYTES;
+#ifndef WOLFSSL_RSA_PUBLIC_ONLY
     word32 plainSz = RSA_TEST_BYTES;
+#endif
 #if !defined(USE_CERT_BUFFERS_2048) && !defined(USE_CERT_BUFFERS_3072) && \
     !defined(USE_CERT_BUFFERS_4096) && !defined(NO_FILESYSTEM)
     XFILE  file;
 #endif
     DECLARE_VAR(out, byte, RSA_TEST_BYTES, HEAP_HINT);
+#ifndef WOLFSSL_RSA_PUBLIC_ONLY
     DECLARE_VAR(plain, byte, RSA_TEST_BYTES, HEAP_HINT);
-
+#endif
 #ifdef DECLARE_VAR_IS_HEAP_ALLOC
-    if ((out == NULL) || (plain == NULL))
+    if (out == NULL
+    #ifndef WOLFSSL_RSA_PUBLIC_ONLY
+        || plain == NULL
+    #endif
+    ) {
         ERROR_OUT(MEMORY_E, exit_rsa_even_mod);
+    }
 #endif
 
 #if defined(USE_CERT_BUFFERS_2048)
@@ -13233,7 +13241,7 @@ static int rsa_even_mod_test(WC_RNG* rng, RsaKey* key)
     }
 
     /* after loading in key use tmp as the test buffer */
-#ifndef WOLFSSL_RSA_VERIFY_ONLY
+#if !defined(WOLFSSL_RSA_VERIFY_ONLY) && !defined(WOLFSSL_RSA_PUBLIC_ONLY)
     inLen = 32;
     outSz   = wc_RsaEncryptSize(key);
     XMEMSET(tmp, 7, plainSz);
@@ -13277,7 +13285,9 @@ static int rsa_even_mod_test(WC_RNG* rng, RsaKey* key)
 exit_rsa_even_mod:
     XFREE(tmp, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
     FREE_VAR(out, HEAP_HINT);
+#ifndef WOLFSSL_RSA_PUBLIC_ONLY
     FREE_VAR(plain, HEAP_HINT);
+#endif
 
     return ret;
 }
@@ -13993,11 +14003,11 @@ static int rsa_test(void)
     DECLARE_VAR_INIT(in, byte, inLen, inStr, HEAP_HINT);
     DECLARE_VAR(out, byte, RSA_TEST_BYTES, HEAP_HINT);
     DECLARE_VAR(plain, byte, RSA_TEST_BYTES, HEAP_HINT);
-#endif
 
 #ifdef DECLARE_VAR_IS_HEAP_ALLOC
     if ((in == NULL) || (out == NULL) || (plain == NULL))
         ERROR_OUT(MEMORY_E, exit_rsa);
+#endif
 #endif
 
 #ifdef WOLFSSL_SMALL_STACK
@@ -15006,8 +15016,8 @@ static int rsa_test(void)
 
 #if defined(WC_RSA_PSS) && !defined(HAVE_FIPS_VERSION) /* not supported with FIPSv1 */
 /* Need to create known good signatures to test with this. */
-#ifndef WOLFSSL_RSA_VERIFY_ONLY
-    ret = rsa_pss_test(&rng, key);
+#if !defined(WOLFSSL_RSA_VERIFY_ONLY) && !defined(WOLFSSL_RSA_PUBLIC_ONLY)
+     ret = rsa_pss_test(&rng, key);
     if (ret != 0)
         goto exit_rsa;
 #endif
@@ -15061,9 +15071,12 @@ exit_rsa:
     XFREE(tmp, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
     wc_FreeRng(&rng);
 
+#if (!defined(WOLFSSL_RSA_VERIFY_ONLY) || defined(WOLFSSL_PUBLIC_MP)) && \
+                                 !defined(WC_NO_RSA_OAEP) && !defined(WC_NO_RNG)
     FREE_VAR(in, HEAP_HINT);
     FREE_VAR(out, HEAP_HINT);
     FREE_VAR(plain, HEAP_HINT);
+#endif
 
     /* ret can be greater then 0 with certgen but all negative values should
      * be returned and treated as an error */
