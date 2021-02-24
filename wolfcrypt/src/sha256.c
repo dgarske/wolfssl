@@ -722,6 +722,51 @@ static int InitSha256(wc_Sha256* sha256)
 #elif defined(WOLFSSL_SILABS_SE_ACCEL)
     /* implemented in wolfcrypt/src/port/silabs/silabs_hash.c */
 
+#elif defined(WOLFSSL_SE050)
+
+    #if 0
+    #include <wolfssl/wolfcrypt/port/nxp/se050_port.h>
+    //#include "fsl_sss_api.h"
+    int wc_InitSha256_ex(wc_Sha256* sha256, void* heap, int devId)
+    {
+        if (sha256 == NULL) {
+            return BAD_FUNC_ARG;
+        }
+
+
+
+        return se050_hash_init((wolfssl_SE050_Hash *)sha256, heap, devId);
+    }
+
+    int wc_Sha256Update(wc_Sha256* sha256, const byte* data, word32 len)
+    {
+        return se050_hash_update((wolfssl_SE050_Hash *)sha256, data, len);
+    }
+
+    int wc_Sha256Final(wc_Sha256* sha256, byte* hash)
+    {
+        int ret = 0;
+        size_t digestLen = WC_SHA_DIGEST_SIZE;
+        
+        ret = se050_hash_final((wolfssl_SE050_Hash *)sha256, hash, digestLen,
+                                kAlgorithm_SSS_SHA256);
+        if (ret != 0)
+            return ret;
+        return wc_InitSha256_ex(sha256, NULL, INVALID_DEVID);
+        
+    }
+    int wc_Sha256FinalRaw(wc_Sha256* sha256, byte* hash)
+    {
+        int ret = 0;
+        size_t digestLen = WC_SHA_DIGEST_SIZE;
+        ret = se050_hash_final((wolfssl_SE050_Hash *)sha256, hash, digestLen,
+                                kAlgorithm_SSS_SHA256);
+        if (ret != 0)
+            return ret;
+        return wc_InitSha256_ex(sha256, NULL, INVALID_DEVID);
+    }
+    #endif
+
 #else
     #define NEED_SOFT_SHA256
 
@@ -1507,6 +1552,9 @@ static int InitSha256(wc_Sha256* sha256)
     #ifdef WOLFSSL_PIC32MZ_HASH
         wc_Sha256Pic32Free(sha224);
     #endif
+    /*#ifdef WOLFSSL_SE050
+    se050_hash_free((wolfssl_SE050_Hash *)sha);
+    #endif*/
     }
 #endif /* WOLFSSL_SHA224 */
 

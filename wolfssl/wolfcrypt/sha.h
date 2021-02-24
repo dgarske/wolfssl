@@ -111,6 +111,10 @@ enum {
     #include "wolfssl/wolfcrypt/port/cypress/psoc6_crypto.h"
 #else
 
+#if defined(WOLFSSL_SE050)
+   // #include "fsl_sss_api.h"
+    #include "wolfssl/wolfcrypt/port/nxp/se050_port.h"
+#endif
 /* Sha digest */
 struct wc_Sha {
 #ifdef FREESCALE_LTC_SHA

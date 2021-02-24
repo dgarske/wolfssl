@@ -2552,7 +2552,20 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
             }
             return 0;
         }
-
+#elif defined(WOLFSSL_SE050)
+     #include <wolfssl/wolfcrypt/port/nxp/se050_port.h>
+    
+    int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz){
+        int ret = 0;
+        
+        (void)os;
+        if(output == NULL) {
+            return BUFFER_E;
+        }
+        ret = se050_get_random_number(sz, output);
+        return ret;
+    }
+    
 #elif defined(NO_DEV_RANDOM)
 
     #error "you need to write an os specific wc_GenerateSeed() here"

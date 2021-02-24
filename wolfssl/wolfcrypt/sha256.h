@@ -133,7 +133,16 @@ enum {
     #include "wolfssl/wolfcrypt/port/cypress/psoc6_crypto.h"
 #elif defined(WOLFSSL_IMXRT_DCP)
     #include <wolfssl/wolfcrypt/port/nxp/dcp_port.h>
+/*#elif defined(WOLFSSL_SE050)
+    #include "wolfssl/wolfcrypt/port/nxp/se050_port.h"*/
+    //#include "fsl_sss_api.h"
 #else
+
+/*#if defined(WOLFSSL_SE050)
+    #include "wolfssl/wolfcrypt/port/nxp/se050_port.h"
+    //#include "fsl_sss_api.h"
+#endif*/
+
 
 /* wc_Sha256 digest */
 struct wc_Sha256 {

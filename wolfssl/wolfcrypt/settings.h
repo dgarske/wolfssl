@@ -218,6 +218,9 @@
 /* Uncomment next line if building for Linux Kernel Module */
 /* #define WOLFSSL_LINUXKM */
 
+/* Uncomment next line if building for NXP SE050*/
+ //#define WOLFSSL_SE050
+
 
 #include <wolfssl/wolfcrypt/visibility.h>
 
@@ -1736,6 +1739,17 @@ extern void uITRON4_free(void *p) ;
     #else
         #define WOLFSSL_MMCAU_ALIGNMENT 0
     #endif
+#endif
+
+#ifdef WOLFSSL_SE050
+    /*#ifndef NO_MAIN_DRIVER //this does not affect the test.c nor test.h
+        #define NO_MAIN_DRIVER
+    #endif*/
+    //#define USE_FLAT_TEST_H
+    #define SIZEOF_LONG 4
+    #define SIZEOF_LONG_LONG 8
+    #define ALT_ECC_SIZE
+    #define WOLFSSL_HASH_FLAGS
 #endif
 
 /* if using hardware crypto and have alignment requirements, specify the

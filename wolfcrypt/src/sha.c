@@ -335,6 +335,47 @@
 
     /* implemented in wolfcrypt/src/port/silabs/silabs_hash.c */
 
+#elif defined(WOLFSSL_SE050)
+
+    #include <wolfssl/wolfcrypt/port/nxp/se050_port.h>
+    int wc_InitSha_ex(wc_Sha* sha, void* heap, int devId)
+    {
+        if (sha == NULL) {
+            return BAD_FUNC_ARG;
+        }
+
+        /*(void)devId;
+        (void)heap;*/
+
+        return se050_hash_init((wolfssl_SE050_Hash *)sha, heap, devId);
+    }
+
+    int wc_ShaUpdate(wc_Sha* sha, const byte* data, word32 len)
+    {
+        return se050_hash_update((wolfssl_SE050_Hash *)sha, data, len);
+    }
+
+    int wc_ShaFinal(wc_Sha* sha, byte* hash)
+    {
+        int ret = 0;
+        size_t digestLen = WC_SHA_DIGEST_SIZE;
+        
+        ret = se050_hash_final((wolfssl_SE050_Hash *)sha, hash, digestLen, kAlgorithm_SSS_SHA1);
+        if (ret != 0)
+            return ret;
+        return wc_InitSha(sha);
+        
+    }
+    int wc_ShaFinalRaw(wc_Sha* sha, byte* hash)
+    {
+        int ret = 0;
+        size_t digestLen = WC_SHA_DIGEST_SIZE;
+        ret = se050_hash_final((wolfssl_SE050_Hash *)sha, hash, digestLen, 1);
+        if (ret != 0)
+            return ret;
+        return wc_InitSha(sha);
+    }
+
 #else
     /* Software implementation */
     #define USE_SHA_SOFTWARE_IMPL
@@ -792,6 +833,9 @@ void wc_ShaFree(wc_Sha* sha)
 
 #ifdef WOLFSSL_PIC32MZ_HASH
     wc_ShaPic32Free(sha);
+#endif
+#ifdef WOLFSSL_SE050
+   se050_hash_free((wolfssl_SE050_Hash *)sha);
 #endif
 #if (defined(WOLFSSL_RENESAS_TSIP_CRYPT) && \
     !defined(NO_WOLFSSL_RENESAS_TSIP_CRYPT_HASH))
