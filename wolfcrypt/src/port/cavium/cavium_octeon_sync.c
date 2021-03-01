@@ -45,6 +45,15 @@
 #include "cvmx-key.h"
 #include "cvmx-swap.h"
 
+#ifndef NO_HMAC
+    #include <wolfssl/wolfcrypt/hmac.h>
+#endif
+#ifndef NO_SHA
+    #include <wolfssl/wolfcrypt/sha.h>
+#endif
+#ifndef NO_SHA256
+    #include <wolfssl/wolfcrypt/sha256.h>
+#endif
 #ifndef NO_DES3
     #include <wolfssl/wolfcrypt/des3.h>
 #endif
@@ -55,6 +64,295 @@
 #define NOOPT __attribute__((optimize("O0")))
 
 static int devId = 1234;
+
+#ifndef NO_SHA
+int
+SHA1_Update (wc_Sha * c, const void *data, size_t n)
+{
+  unsigned long remaining = 0, totlen = 0, copied = 0;
+  const uint64_t *ptr = (const uint64_t *) data;
+
+     
+  if(!n) 
+    return -1;
+
+  totlen = n;
+
+  if (c->buffLen) {
+    totlen += remaining = c->buffLen;
+    memcpy ((char *) &(c->buffer) + remaining, data,
+        WC_SHA_BLOCK_SIZE - remaining);
+    copied = 1;
+  }
+  if (totlen >= 64) {
+    /* Get the running IV loaded */
+    word64 E = (((word64)c->digest[0]) << 32) | c->digest[1];
+    word64 F = (((word64)c->digest[2]) << 32) | c->digest[3];
+    word64 G = (((word64)c->digest[4]) << 32);
+
+    CVMX_MT_HSH_IV (E, 0);
+    CVMX_MT_HSH_IV (F, 1);
+    CVMX_MT_HSH_IV (G, 2);
+
+    /* Iterate through 64 bytes at a time */
+    while (totlen >= 64) {
+      if (copied)
+        copied = 0;
+      if (remaining)
+        ptr = (uint64_t *) & c->buffer;
+      CVMX_MT_HSH_DAT (*ptr++, 0);
+      CVMX_MT_HSH_DAT (*ptr++, 1);
+      CVMX_MT_HSH_DAT (*ptr++, 2);
+      CVMX_MT_HSH_DAT (*ptr++, 3);
+      CVMX_MT_HSH_DAT (*ptr++, 4);
+      CVMX_MT_HSH_DAT (*ptr++, 5);
+      CVMX_MT_HSH_DAT (*ptr++, 6);
+      CVMX_MT_HSH_STARTSHA (*ptr++);
+      CVMX_PREFETCH(ptr, 64);
+      totlen -= 64;
+      /* remainig reset set ptr to input data */
+      if (remaining) {
+        ptr = (uint64_t*)((char*)data + (WC_SHA_BLOCK_SIZE - remaining));
+        remaining = 0;
+      }
+    }
+    /* Update the IV */
+    CVMX_MF_HSH_IV (E, 0);
+    CVMX_MF_HSH_IV (F, 1);
+    CVMX_MF_HSH_IV (G, 2);
+
+    c->digest[0] = E >> 32;
+    c->digest[1] = (word32)E;
+    c->digest[2] = F >> 32;
+    c->digest[3] = (word32)F;
+    c->digest[4] = G >> 32;
+  }                             /* end of if(totlen) */
+  word32 tmp = c->loLen;
+  if ((c->loLen += n) < tmp)
+    c->hiLen++;                       /* carry low to high */
+  if (!copied)
+    memcpy (&(c->buffer), ptr, totlen);
+  c->buffLen = totlen;
+  return 1;
+}
+
+int
+SHA1_Final (unsigned char *md, wc_Sha * c)
+{
+  uint64_t bits = (((uint64_t)c->hiLen) << 35) + (((uint64_t)c->loLen) << 3);
+  unsigned long len = c->loLen % 64;
+  uint8_t chunk[64];
+  const uint64_t *ptr;
+
+  /* The rest of the data will need to be copied into a chunk */
+  if (len > 0)
+    memcpy (chunk, c->buffer, len);
+  chunk[len] = 0x80;
+  memset (chunk + len + 1, 0, 64 - len - 1);
+  /* Get the running IV loaded */
+  word64 E = (((word64)c->digest[0]) << 32) | c->digest[1];
+  word64 F = (((word64)c->digest[2]) << 32) | c->digest[3];
+  word64 G = (((word64)c->digest[4]) << 32);
+
+  CVMX_MT_HSH_IV (E, 0);
+  CVMX_MT_HSH_IV (F, 1);
+  CVMX_MT_HSH_IV (G, 2);
+
+  ptr = (const uint64_t *) chunk;
+  CVMX_MT_HSH_DAT (*ptr++, 0);
+  CVMX_MT_HSH_DAT (*ptr++, 1);
+  CVMX_MT_HSH_DAT (*ptr++, 2);
+  CVMX_MT_HSH_DAT (*ptr++, 3);
+  CVMX_MT_HSH_DAT (*ptr++, 4);
+  CVMX_MT_HSH_DAT (*ptr++, 5);
+  CVMX_MT_HSH_DAT (*ptr++, 6);
+
+  /* Check to see if there is room for the bit count */
+  if (len < 56)
+    CVMX_MT_HSH_STARTSHA (bits);
+  else {
+    CVMX_MT_HSH_STARTSHA (*ptr);
+    /* Another block was needed */
+    CVMX_MT_HSH_DATZ (0);
+    CVMX_MT_HSH_DATZ (1);
+    CVMX_MT_HSH_DATZ (2);
+    CVMX_MT_HSH_DATZ (3);
+    CVMX_MT_HSH_DATZ (4);
+    CVMX_MT_HSH_DATZ (5);
+    CVMX_MT_HSH_DATZ (6);
+    CVMX_MT_HSH_STARTSHA (bits);
+  }
+  /* Update the IV */
+  CVMX_MF_HSH_IV (E, 0);
+  CVMX_MF_HSH_IV (F, 1);
+  CVMX_MF_HSH_IV (G, 2);
+  cvmx_usd(md, E);
+  cvmx_usd(md + 8, F);
+  cvmx_usw(md + 16, G >> 32);
+//   CVMX_STOREUNA_INT64(E, md, 0);
+//   CVMX_STOREUNA_INT64(F, md, 8);
+//   CVMX_STOREUNA_INT32(G >> 32, md, 16);
+  c->digest[0] = 0x67452301L;
+  c->digest[1] = 0xEFCDAB89L;
+  c->digest[2] = 0x98BADCFEL;
+  c->digest[3] = 0x10325476L;
+  c->digest[4] = 0xC3D2E1F0L;
+  c->buffLen = 0;
+  c->loLen   = 0;
+  c->hiLen   = 0;
+  return 1;
+}
+
+static int Octeon_Sha_Hash(wc_Sha* sha, byte* in, word32 inSz, byte* out)
+{
+    if (sha == NULL || (in == NULL && out == NULL))
+        return BAD_FUNC_ARG;
+
+    if (in)
+        SHA1_Update(sha, in, inSz);
+    if (out)
+        SHA1_Final(out, sha);
+
+    return 0;
+}
+#endif
+
+#if !defined(NO_SHA256)
+int
+SHA256_Update (wc_Sha256 * ctx, const void *data, size_t len)
+{
+    uint8_t *pbuf = (uint8_t *)&ctx->buffer[0];
+  //Increment totalin
+  word32 tmp = ctx->loLen;
+  if ((ctx->loLen += len) < tmp)
+    ctx->hiLen++;                       /* carry low to high */
+
+  if ((ctx->buffLen + len) >= 64) {
+    //restore IV
+    CVMX_MT_HSH_IV (ctx->iv[0], 0);
+    CVMX_MT_HSH_IV (ctx->iv[1], 1);
+    CVMX_MT_HSH_IV (ctx->iv[2], 2);
+    CVMX_MT_HSH_IV (ctx->iv[3], 3);
+
+    if (ctx->buffLen) {
+      memcpy (pbuf + ctx->buffLen, data, 64 - ctx->buffLen);
+      len -= (64 - ctx->buffLen);
+      data = (uint8_t *) data + (64 - ctx->buffLen);
+      ctx->buffLen = 0;
+      uint64_t *ptr = (uint64_t *) pbuf;
+      CVMX_MT_HSH_DAT (*ptr++, 0);
+      CVMX_MT_HSH_DAT (*ptr++, 1);
+      CVMX_MT_HSH_DAT (*ptr++, 2);
+      CVMX_MT_HSH_DAT (*ptr++, 3);
+      CVMX_MT_HSH_DAT (*ptr++, 4);
+      CVMX_MT_HSH_DAT (*ptr++, 5);
+      CVMX_MT_HSH_DAT (*ptr++, 6);
+      CVMX_MT_HSH_STARTSHA256 (*ptr++);
+    }
+
+    uint64_t *ptr = (uint64_t *) data;
+    while (len >= 64) {
+      CVMX_MT_HSH_DAT (*ptr++, 0);
+      CVMX_MT_HSH_DAT (*ptr++, 1);
+      CVMX_MT_HSH_DAT (*ptr++, 2);
+      CVMX_MT_HSH_DAT (*ptr++, 3);
+      CVMX_MT_HSH_DAT (*ptr++, 4);
+      CVMX_MT_HSH_DAT (*ptr++, 5);
+      CVMX_MT_HSH_DAT (*ptr++, 6);
+      CVMX_MT_HSH_STARTSHA256 (*ptr++);
+      len -= 64;
+    }
+
+    if (len) {
+      memcpy (pbuf, ptr, len);
+      ctx->buffLen = len;
+    }
+    //save IV
+    CVMX_MF_HSH_IV (ctx->iv[0], 0);
+    CVMX_MF_HSH_IV (ctx->iv[1], 1);
+    CVMX_MF_HSH_IV (ctx->iv[2], 2);
+    CVMX_MF_HSH_IV (ctx->iv[3], 3);
+  } else {
+    memcpy (&pbuf[ctx->buffLen], data, len);
+    ctx->buffLen += len;
+  }
+
+  return 1;
+}
+
+int
+SHA256_Final (unsigned char *md, wc_Sha256 * ctx)
+{
+    uint64_t bits = (((uint64_t)ctx->hiLen) << 35) + (((uint64_t)ctx->loLen) << 3);
+
+    //RESTORE IV
+    CVMX_MT_HSH_IV (ctx->iv[0], 0);
+    CVMX_MT_HSH_IV (ctx->iv[1], 1);
+    CVMX_MT_HSH_IV (ctx->iv[2], 2);
+    CVMX_MT_HSH_IV (ctx->iv[3], 3);
+
+    uint8_t *pbuf = (uint8_t *)&ctx->buffer[0];
+    pbuf[ctx->buffLen] = 0x80;
+    memset (pbuf + ctx->buffLen + 1, 0, 64 - ctx->buffLen - 1);
+
+    uint64_t *ptr = (uint64_t *) pbuf;
+    CVMX_MT_HSH_DAT (*ptr++, 0);
+    CVMX_MT_HSH_DAT (*ptr++, 1);
+    CVMX_MT_HSH_DAT (*ptr++, 2);
+    CVMX_MT_HSH_DAT (*ptr++, 3);
+    CVMX_MT_HSH_DAT (*ptr++, 4);
+    CVMX_MT_HSH_DAT (*ptr++, 5);
+    CVMX_MT_HSH_DAT (*ptr++, 6);
+    if (ctx->buffLen < 56) {
+      CVMX_MT_HSH_STARTSHA256 (bits);
+    } else {
+      CVMX_MT_HSH_STARTSHA256 (*ptr);
+      /* Another block was needed */
+      CVMX_MT_HSH_DATZ (0);
+      CVMX_MT_HSH_DATZ (1);
+      CVMX_MT_HSH_DATZ (2);
+      CVMX_MT_HSH_DATZ (3);
+      CVMX_MT_HSH_DATZ (4);
+      CVMX_MT_HSH_DATZ (5);
+      CVMX_MT_HSH_DATZ (6);
+      CVMX_MT_HSH_STARTSHA256 (bits);
+    }
+
+    //WRITE IV
+    CVMX_MF_HSH_IV (((uint64_t *) md)[0], 0);
+    CVMX_MF_HSH_IV (((uint64_t *) md)[1], 1);
+    CVMX_MF_HSH_IV (((uint64_t *) md)[2], 2);
+    // if (ctx->sha256) {
+      CVMX_MF_HSH_IV (((uint64_t *) md)[3], 3);
+    // } else {
+    //   CVMX_MF_HSH_IV (ctx->iv[3], 3);
+    //   memcpy (md + 24, &ctx->iv[3], 4);
+    // }
+
+    ctx->iv[0] = 0x6a09e667bb67ae85ull;
+    ctx->iv[1] = 0x3c6ef372a54ff53aull;
+    ctx->iv[2] = 0x510e527f9b05688cull;
+    ctx->iv[3] = 0x1f83d9ab5be0cd19ull;
+    ctx->buffLen = 0;
+    ctx->loLen   = 0;
+    ctx->hiLen   = 0;
+
+  return 1;
+}
+
+static int Octeon_Sha256_Hash(wc_Sha256* sha, byte* in, word32 inSz, byte* out)
+{
+    if (sha == NULL || (in == NULL && out == NULL))
+        return BAD_FUNC_ARG;
+
+    if (in)
+        SHA256_Update(sha, in, inSz);
+    if (out)
+        SHA256_Final(out, sha);
+
+    return 0;
+}
+#endif
 
 #ifndef NO_DES3
 static int Octeon_Des3_CbcEncrypt(Des3* des3,
@@ -409,7 +707,6 @@ static int Octeon_AesCbc_Decrypt(Aes *aes,
     return 0;
 }
 #endif /* HAVE_AES_CBC */
-
 
 #ifdef HAVE_AESGCM
 
@@ -784,10 +1081,33 @@ static int myCryptoDevCb(int devIdArg, wc_CryptoInfo* info, void* ctx)
     printf("CryptoDevCb: Algo Type %d\n", info->algo_type);
 #endif
 
+    if (info->algo_type == WC_ALGO_TYPE_HASH) {
+#if !defined(NO_SHA)
+        if (info->hash.type == WC_HASH_TYPE_SHA) {
+            ret = Octeon_Sha_Hash(
+                info->hash.sha1,
+                (byte*)info->hash.in,
+                info->hash.inSz,
+                info->hash.digest
+            );
+        }
+#endif
+#if !defined(NO_SHA256)
+        if (info->hash.type == WC_HASH_TYPE_SHA256) {
+            ret = Octeon_Sha256_Hash(
+                info->hash.sha256,
+                (byte*)info->hash.in,
+                info->hash.inSz,
+                info->hash.digest
+            );
+        }
+#endif
+    }
     if (info->algo_type == WC_ALGO_TYPE_CIPHER) {
 #if !defined(NO_AES) || !defined(NO_DES3)
     #ifdef HAVE_AESGCM
         if (info->cipher.type == WC_CIPHER_AES_GCM) {
+            return NOT_COMPILED_IN;
             if (info->cipher.enc) {
                 ret = Octeon_AesGcm_Encrypt(
                     info->cipher.aesgcm_enc.aes,

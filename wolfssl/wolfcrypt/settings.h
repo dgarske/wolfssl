@@ -1668,10 +1668,10 @@ extern void uITRON4_free(void *p) ;
 #endif
 
 
-#if defined(OPENSSL_EXTRA) && !defined(NO_CERTS)
-    #undef  KEEP_PEER_CERT
-    #define KEEP_PEER_CERT
-#endif
+// #if defined(OPENSSL_EXTRA) && !defined(NO_CERTS)
+//     #undef  KEEP_PEER_CERT
+//     #define KEEP_PEER_CERT
+// #endif
 
 
 /* stream ciphers except arc4 need 32bit alignment, intel ok without */
@@ -1726,6 +1726,66 @@ extern void uITRON4_free(void *p) ;
     #define USE_CERT_BUFFERS_2048
     #define USE_FAST_MATH
 #endif /* WOLFSSL_SGX */
+
+#ifdef MIPS64_CVMX
+    #undef  FP_MAX_BITS
+    #define FP_MAX_BITS (8192)
+    #define BIG_ENDIAN_ORDER
+    #define SIZEOF_LONG 8
+    #define HAVE_CAVIUM_OCTEON_SYNC
+    #define WOLF_CRYPTO_CB
+    #define OPENSSL_EXTRA
+    #define OPENSSL_ALL
+    #define NO_WOLFSSL_DIR
+    #define WOLFSSL_USER_IO
+    #define WOLFSSL_NO_SOCK
+    #define NO_WRITEV
+    #define WOLFSSL_NO_MALLOC
+    // #define WOLFSSL_DEBUG_MEMORY
+    #define WOLFSSL_USER_MUTEX
+    // #define DEBUG_WOLFSSL
+    #define ALLOW_INVALID_CERTSIGN
+    #define WOLFSSL_ALWAYS_VERIFY_CB
+    #define WOLFSSL_NONBLOCK_OCSP
+    #define USE_FAST_MATH
+    #define HAVE_HASHDRBG
+    #define HAVE_SNI
+    #define HAVE_ECC
+    #define HAVE_AESGCM
+    #define WOLFSSL_SHA384
+    #define WOLFSSL_STATIC_RSA
+    // #define WOLFSSL_SHA512
+    #define HAVE_TLS_EXTENSIONS
+    #define NO_RC4
+    #define NO_MD4
+    #define NO_RABBIT
+    #define HAVE_CHACHA
+    #define HAVE_POLY1305
+    #define WC_NO_HARDEN
+    #define HAVE_EX_DATA
+	// OPENSSL_SYSNAME_OCT_SE
+    // OCTEON_OPENSSL
+    // OPENSSL_NO_CAMELLIA
+    // OPENSSL_NO_GMP
+    // OPENSSL_NO_MDC2
+    // OPENSSL_NO_RC5
+    // OPENSSL_NO_RFC3779
+    // OPENSSL_NO_SEED
+    // OPENSSL_NO_COMP
+    // OPENSSL_NO_IDEA
+    #include "cvmx-spinlock.h"
+    typedef cvmx_spinlock_t wolfSSL_Mutex;
+    // #define wc_InitMutex(m) (cvmx_spinlock_init(m),0)
+    // #define wc_FreeMutex(m) (0)
+    // #define wc_LockMutex    (cvmx_spinlock_lock(m),0)
+    // #define wc_UnLockMutex  (cvmx_spinlock_unlock(m),0)
+    static inline int wc_InitMutex(wolfSSL_Mutex* m) { cvmx_spinlock_init(m); return 0; }
+    static inline int wc_FreeMutex(wolfSSL_Mutex *m) { return 0; }
+    static inline int wc_LockMutex(wolfSSL_Mutex *m) { cvmx_spinlock_lock(m); return 0; }
+    static inline int wc_UnLockMutex(wolfSSL_Mutex *m) { cvmx_spinlock_unlock(m); return 0; }
+    #define CUSTOM_RAND_GENERATE_SEED oct_rand_generate
+    extern int oct_rand_generate(uint8_t *rand, uint64_t len);
+#endif /* MIPS64_CVMX */
 
 /* FreeScale MMCAU hardware crypto has 4 byte alignment.
    However, KSDK fsl_mmcau.h gives API with no alignment
@@ -2313,10 +2373,12 @@ extern void uITRON4_free(void *p) ;
 #endif
 
 /* Parts of the openssl compatibility layer require peer certs */
+#if 0
 #if defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX) || defined(WOLFSSL_HAPROXY) \
  || defined(HAVE_LIGHTY)
     #undef  KEEP_PEER_CERT
     #define KEEP_PEER_CERT
+#endif
 #endif
 
 /* RAW hash function APIs are not implemented */

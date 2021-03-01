@@ -155,6 +155,8 @@ int fp_add(fp_int *a, fp_int *b, fp_int *c)
   return ret;
 }
 
+#pragma GCC diagnostic ignored "-Warray-bounds"
+
 /* unsigned addition */
 int s_fp_add(fp_int *a, fp_int *b, fp_int *c)
 {

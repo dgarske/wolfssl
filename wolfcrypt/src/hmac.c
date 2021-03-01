@@ -211,29 +211,34 @@ int _InitHmac(Hmac* hmac, int type, void* heap)
     #ifndef NO_SHA
         case WC_SHA:
             ret = wc_InitSha(&hmac->hash.sha);
+            hmac->hash.sha.devId = hmac->devId;
             break;
     #endif /* !NO_SHA */
 
     #ifdef WOLFSSL_SHA224
         case WC_SHA224:
             ret = wc_InitSha224(&hmac->hash.sha224);
+            hmac->hash.sha224.devId = hmac->devId;
             break;
     #endif /* WOLFSSL_SHA224 */
 
     #ifndef NO_SHA256
         case WC_SHA256:
             ret = wc_InitSha256(&hmac->hash.sha256);
+            hmac->hash.sha256.devId = hmac->devId;
             break;
     #endif /* !NO_SHA256 */
 
     #ifdef WOLFSSL_SHA384
         case WC_SHA384:
             ret = wc_InitSha384(&hmac->hash.sha384);
+            // hmac->hash.sha384.devId = hmac->devId;
             break;
     #endif /* WOLFSSL_SHA384 */
     #ifdef WOLFSSL_SHA512
         case WC_SHA512:
             ret = wc_InitSha512(&hmac->hash.sha512);
+            // hmac->hash.sha512.devId = hmac->devId;
             break;
     #endif /* WOLFSSL_SHA512 */
 

@@ -10477,6 +10477,10 @@ int DoVerifyCallback(WOLFSSL_CERT_MANAGER* cm, WOLFSSL* ssl, int ret,
             /* mark as verify error */
             args->verifyErr = 1;
         }
+    #ifdef WOLFSSL_NONBLOCK_OCSP
+        if (store->error == OCSP_WANT_READ)
+            ret = OCSP_WANT_READ;
+    #endif
     #if defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)
         if (x509Free) {
             FreeX509(x509);
@@ -11897,7 +11901,28 @@ int ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx,
         #endif
 
             /* Do verify callback */
-            ret = DoVerifyCallback(ssl->ctx->cm, ssl, ret, args);
+            if (ret == OCSP_WANT_READ) {
+                if (ssl->verifyCallbackResult == OCSP_WANT_READ) {
+                    args->lastErr = ret = ssl->verifyCallbackResult;
+                    goto exit_ppc;
+                }
+                ssl->peerVerifyRet = ssl->verifyCallbackResult;
+                switch (ssl->peerVerifyRet)
+                {
+                    case X509_V_OK: ret = 0; break;
+                    default: ret = NO_PEER_CERT; break;
+                }
+            } else
+            {
+                ret = DoVerifyCallback(ssl->ctx->cm, ssl, ret, args);
+            #ifdef WOLFSSL_NONBLOCK_OCSP
+                if (ret == OCSP_WANT_READ) {
+                    ssl->verifyCallbackResult = ret;
+                    args->lastErr = ret;
+                    goto exit_ppc;
+                }
+            #endif
+            }
 
             if (ssl->options.verifyNone &&
                               (ret == CRL_MISSING || ret == CRL_CERT_REVOKED)) {
@@ -13688,7 +13713,7 @@ static WC_INLINE void AeadIncrementExpIV(WOLFSSL* ssl)
 #endif
 
 
-#if defined(HAVE_POLY1305) && defined(HAVE_CHACHA)
+#if defined(HAVE_POLY1305) && defined(HAVE_CHACHA) && defined(HAVE_ONE_TIME_AUTH)
 /* Used for the older version of creating AEAD tags with Poly1305 */
 static int Poly1305TagOld(WOLFSSL* ssl, byte* additional, const byte* out,
                        byte* cipher, word16 sz, byte* tag)
@@ -14230,7 +14255,7 @@ static WC_INLINE int EncryptDo(WOLFSSL* ssl, byte* out, const byte* input,
             break;
     #endif
 
-    #if defined(HAVE_CHACHA) && defined(HAVE_POLY1305)
+    #if defined(HAVE_CHACHA) && defined(HAVE_POLY1305) && defined(HAVE_ONE_TIME_AUTH)
         case wolfssl_chacha:
             ret = ChachaAEADEncrypt(ssl, out, input, sz);
             break;
@@ -14498,7 +14523,7 @@ static WC_INLINE int DecryptDo(WOLFSSL* ssl, byte* plain, const byte* input,
             break;
     #endif
 
-    #if defined(HAVE_CHACHA) && defined(HAVE_POLY1305)
+    #if defined(HAVE_CHACHA) && defined(HAVE_POLY1305) && defined(HAVE_ONE_TIME_AUTH)
         case wolfssl_chacha:
             ret = ChachaAEADDecrypt(ssl, plain, input, sz);
             break;

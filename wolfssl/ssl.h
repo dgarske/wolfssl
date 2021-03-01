@@ -881,6 +881,7 @@ WOLFSSL_API int wolfSSL_use_RSAPrivateKey_file(WOLFSSL*, const char*, int);
 WOLFSSL_API WOLFSSL_CTX* wolfSSL_CTX_new_ex(WOLFSSL_METHOD* method, void* heap);
 WOLFSSL_ABI WOLFSSL_API WOLFSSL_CTX* wolfSSL_CTX_new(WOLFSSL_METHOD*);
 #ifdef OPENSSL_EXTRA
+WOLFSSL_API int wolfSSL_CTX_get_refCount(WOLFSSL_CTX* ctx);
 WOLFSSL_API int wolfSSL_CTX_up_ref(WOLFSSL_CTX*);
 WOLFSSL_API int wolfSSL_CTX_set_ecdh_auto(WOLFSSL_CTX* ctx, int onoff);
 #endif
