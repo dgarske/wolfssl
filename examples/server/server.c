@@ -1119,6 +1119,10 @@ THREAD_RETURN WOLFSSL_THREAD server_test(void* args)
     int doDhKeyCheck = 1;
 #endif
 
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+    const char* keyLogFile = "tls13server.log";
+#endif
+
 #ifdef WOLFSSL_STATIC_MEMORY
     #if (defined(HAVE_ECC) && !defined(ALT_ECC_SIZE)) \
         || defined(SESSION_CERTS)
@@ -2185,6 +2189,15 @@ THREAD_RETURN WOLFSSL_THREAD server_test(void* args)
 #ifdef HAVE_PK_CALLBACKS
         if (pkCallbacks)
             SetupPkCallbacks(ctx);
+#endif
+
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+        if (keyLogFile != NULL) {
+            if (wolfSSL_CTX_use_key_log_file(ctx, keyLogFile) != 0) {
+                wolfSSL_CTX_free(ctx); ctx = NULL;
+                err_sys("Couldn't set file to log keys to.");
+            }
+        }
 #endif
 
         ssl = SSL_new(ctx);

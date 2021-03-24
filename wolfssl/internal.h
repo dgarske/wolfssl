@@ -3029,6 +3029,9 @@ struct WOLFSSL_CTX {
 #ifdef WOLFSSL_STATIC_EPHEMERAL
     StaticKeyExchangeInfo_t staticKE;
 #endif
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+    XFILE fileKeyLog;
+#endif
 };
 
 WOLFSSL_LOCAL
@@ -4411,6 +4414,9 @@ struct WOLFSSL {
      * and https://tools.ietf.org/html/rfc7030#section-3.5). */
     byte clientFinished[TLS_FINISHED_SZ];
     byte serverFinished[TLS_FINISHED_SZ];
+#endif
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+    XFILE fileKeyLog;
 #endif
 };
 

@@ -1622,6 +1622,9 @@ THREAD_RETURN WOLFSSL_THREAD client_test(void* args)
 #ifdef HAVE_ENCRYPT_THEN_MAC
     int disallowETM = 0;
 #endif
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+    const char* keyLogFile = "tls13client.log";
+#endif
 
 #ifdef HAVE_WNR
     const char* wnrConfigFile = wnrConfig;
@@ -2902,6 +2905,15 @@ THREAD_RETURN WOLFSSL_THREAD client_test(void* args)
 #ifdef HAVE_PK_CALLBACKS
     if (pkCallbacks)
         SetupPkCallbacks(ctx);
+#endif
+
+#ifdef WOLFSSL_TLS13_LOG_KEYS
+    if (keyLogFile != NULL) {
+        if (wolfSSL_CTX_use_key_log_file(ctx, keyLogFile) != 0) {
+            wolfSSL_CTX_free(ctx); ctx = NULL;
+            err_sys("Couldn't set file to log keys to.");
+        }
+    }
 #endif
 
     ssl = wolfSSL_new(ctx);
