@@ -2592,10 +2592,13 @@ extern void uITRON4_free(void *p) ;
  * group */
 #ifdef HAVE_LIBOQS
 #define HAVE_PQC
+#define HAVE_FALCON
+#define HAVE_KYBER
 #endif
 
-#if defined(HAVE_PQC) && !defined(HAVE_LIBOQS)
-#error "You must have a post-quantum cryptography implementation to use PQC."
+#if defined(HAVE_PQC) && !defined(HAVE_LIBOQS) && !defined(HAVE_PQM4)
+/* You need a post-quantum cryptography implementation to use PQC. */
+/* We support liboqs and pqm4 */
 #endif
 
 

@@ -275,6 +275,13 @@ extern ${variable.value} ${variable.name};
     #define NO_SESSION_CACHE
 #endif
 
+/* Post Quantum */
+#if defined(WOLF_CONF_PQC) && WOLF_CONF_PQC == 1
+    #define HAVE_PQC
+    /* #define HAVE_LIBOQS */
+    /* #define HAVE_PQM4 */
+#endif
+
 
 /* ------------------------------------------------------------------------- */
 /* Crypto */

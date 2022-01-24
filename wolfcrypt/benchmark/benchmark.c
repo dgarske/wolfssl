@@ -199,7 +199,7 @@
 #ifdef HAVE_LIBOQS
     #include <oqs/kem.h>
 #endif
-#ifdef HAVE_PQC
+#if defined(HAVE_PQC) && defined(HAVE_FALCON)
     #include <wolfssl/wolfcrypt/falcon.h>
 #endif
 
@@ -1500,7 +1500,7 @@ static void bench_stats_asym_finish(const char* algo, int strength,
 }
 #endif
 
-#if defined(HAVE_PQC)
+#if defined(HAVE_PQC) && defined(HAVE_LIBOQS)
 static void bench_stats_pq_asym_finish(const char* algo, int doAsync, int count,
                                        double start, int ret)
 {
@@ -2156,7 +2156,7 @@ static void* benchmarks_do(void* args)
     #endif
 #endif
 
-#ifdef HAVE_PQC
+#if defined(HAVE_PQC) && defined(HAVE_LIBOQS)
     if (bench_all || (bench_pq_asym_algs & BENCH_FALCON_LEVEL1_SIGN))
         bench_falconKeySign(1);
     if (bench_all || (bench_pq_asym_algs & BENCH_FALCON_LEVEL5_SIGN))
@@ -6752,7 +6752,7 @@ void bench_sakke(void)
 #endif /* WOLFCRYPT_SAKKE_CLIENT */
 #endif /* WOLFCRYPT_HAVE_SAKKE */
 
-#ifdef HAVE_PQC
+#if defined(HAVE_PQC) && defined(HAVE_LIBOQS)
 static void bench_pqcKemInit(word32 alg, byte **priv_key, byte **pub_key,
                    const char **wolf_name, OQS_KEM **kem)
 {
@@ -7002,7 +7002,7 @@ void bench_falconKeySign(byte level)
 
     wc_falcon_free(&key);
 }
-#endif /* HAVE_PQC */
+#endif /* HAVE_PQC && HAVE_LIBOQS */
 
 #ifndef HAVE_STACK_SIZE
 #if defined(_WIN32) && !defined(INTIME_RTOS)
