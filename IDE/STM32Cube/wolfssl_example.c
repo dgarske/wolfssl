@@ -105,10 +105,9 @@
 #endif /* WOLFSSL_STATIC_MEMORY */
 
 
-/* UART definitions */
-#ifndef HAL_CONSOLE_UART
-#define HAL_CONSOLE_UART huart4
-#endif
+/* This sets which UART to use for the console.  It is something you will have
+ * to configure in STMCubeIDE and then change here. */
+#define HAL_CONSOLE_UART huart3
 extern UART_HandleTypeDef HAL_CONSOLE_UART;
 
 /*****************************************************************************
@@ -121,10 +120,12 @@ typedef struct func_args {
 } func_args;
 
 const char menu1[] = "\n"
-		"\tt. WolfCrypt Test\n"
-		"\tb. WolfCrypt Benchmark\n"
-        "\tl. WolfSSL TLS Bench\n"
-        "\te. Show Cipher List\n";
+        "\tt. wolfCrypt Test\n"
+        "\tb. wolfCrypt Benchmark\n"
+        "\tl. wolfSSL TLS Bench\n"
+        "\te. Show Cipher List\n"
+        "\ts. Run TLS 1.3 Server over UART\n"
+        "\tc. Run TLS 1.3 Client over UART\n";
 
 static void PrintMemStats(void);
 double current_time(void);
@@ -1468,24 +1469,263 @@ static void PrintMemStats(void)
 #endif
 }
 
-#if 0
-static void* wolfMallocCb(size_t size)
-{
-	void* ptr = malloc(size);
-	if (ptr == NULL) {
-		printf("BREAK!\n");
-	}
-	return ptr;
-}
-static void wolfFreeCb(void *ptr)
-{
-	free(ptr);
-}
-static void* wolfReallocCb(void *ptr, size_t size)
-{
-	return realloc(ptr, size);
-}
+/* UART DMA IO Routines */
+#ifndef B115200
+#define B115200 115200
 #endif
+
+/* Max buffer for a single TLS frame */
+#ifndef MAX_RECORD_SIZE
+#define MAX_RECORD_SIZE (16 * 1024)
+#endif
+
+typedef struct {
+	uint16_t curr_index;
+        uint16_t data_len;
+	char buf[MAX_RECORD_SIZE];
+} tls13_buf;
+
+/* This sets which UART to do the TLS 1.3 connection over.  It is something you
+ * will have to configure in STMCubeIDE and then change here. */
+#define TLS_UART huart2
+extern UART_HandleTypeDef TLS_UART;
+
+static unsigned int msg_length = 0;
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+   if (huart->Instance == TLS_UART.Instance) {
+       msg_length = Size;
+   }
+}
+
+static int uartIORx(WOLFSSL *ssl, char *buf, int sz, void *ctx)
+{
+    HAL_StatusTypeDef status;
+    tls13_buf *tb = ctx;
+
+#ifdef DEBUG_UART_IO
+    printf("UART Read: In %d\n", sz);
+#endif
+
+    if (tb->curr_index + sz <= tb->data_len) {
+        XMEMCPY(buf, tb->buf + tb->curr_index, sz);
+        tb->curr_index += sz;
+#ifdef DEBUG_UART_IO
+        printf("UART Read1: Out %d\n", sz);
+#endif
+        return sz;
+    }
+
+    msg_length = 0;
+    XMEMSET(tb, 0, sizeof(*tb));
+
+    /* Now get the bytes sent */
+    status = HAL_UARTEx_ReceiveToIdle_DMA(&TLS_UART, (uint8_t *)tb->buf, MAX_RECORD_SIZE);
+
+    if (status != HAL_OK) {
+        return WOLFSSL_CBIO_ERR_WANT_READ;
+    } else {
+        while(msg_length == 0) {
+            HAL_Delay(10);
+        }
+#ifdef DEBUG_UART_IO
+        printf("Message received! length = %d\n", msg_length);
+#endif
+    }
+
+    /* now return the number of bytes requested. */
+    XMEMCPY(buf, tb->buf, sz);
+    tb->data_len = msg_length;
+    tb->curr_index = sz;
+
+#ifdef DEBUG_UART_IO
+    printf("UART Read2: Out %d\n", tb->data_len);
+#endif
+
+    return sz;
+}
+
+static int uartIOTx(WOLFSSL *ssl, char *buf, int sz, void *ctx)
+{
+    HAL_StatusTypeDef status;
+    int ret = sz;
+    (void)ctx;
+
+#ifdef DEBUG_UART_IO
+    printf("UART Write: In %d\n", sz);
+#endif
+
+    status = HAL_UART_Transmit(&TLS_UART, (uint8_t *)buf, sz, 0xFFFF);
+    if (status != HAL_OK) {
+        ret = WOLFSSL_CBIO_ERR_WANT_WRITE;
+    }
+
+#ifdef DEBUG_UART_IO
+    printf("UART Write: Out %d\n", ret);
+#endif
+
+    return ret;
+}
+
+/* UART TLS 1.3 client and server */
+static int tls13_uart_server(void)
+{
+    int ret = -1, err;
+    WOLFSSL_CTX* ctx = NULL;
+    WOLFSSL* ssl = NULL;
+    byte echoBuffer[100];
+    tls13_buf tbuf;
+
+    XMEMSET(&tbuf, 0, sizeof(tbuf));
+    /* TODO: Flush any data in the RX buffer */
+
+    ctx = wolfSSL_CTX_new(wolfTLSv1_3_server_method());
+    if (ctx == NULL) {
+        printf("Error creating WOLFSSL_CTX\n");
+        goto done;
+    }
+
+    /* Register wolfSSL send/recv callbacks */
+    wolfSSL_CTX_SetIOSend(ctx, uartIOTx);
+    wolfSSL_CTX_SetIORecv(ctx, uartIORx);
+
+    ret = wolfSSL_CTX_use_PrivateKey_buffer(ctx, ecc_key_der_256,
+        sizeof_ecc_key_der_256, WOLFSSL_FILETYPE_ASN1);
+    if (ret != WOLFSSL_SUCCESS) {
+        printf("error loading server private key\n");
+        goto done;
+    }
+
+    ret = wolfSSL_CTX_use_certificate_buffer(ctx, serv_ecc_der_256,
+        sizeof_serv_ecc_der_256, WOLFSSL_FILETYPE_ASN1);
+    if (ret != WOLFSSL_SUCCESS) {
+        printf("error loading server certificate\n");
+        goto done;
+    }
+
+    ssl = wolfSSL_new(ctx);
+    if (ssl == NULL) {
+        printf("Error creating WOLFSSL\n");
+        goto done;
+    }
+
+    wolfSSL_SetIOReadCtx(ssl, &tbuf);
+
+    printf("Waiting for client\n");
+    do {
+        ret = wolfSSL_accept(ssl);
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    if (ret != WOLFSSL_SUCCESS) {
+        printf("TLS accept error %d\n", err);
+        goto done;
+    }
+    printf("TLS Accept handshake done\n");
+
+    /* Waiting for data to echo */
+    XMEMSET(echoBuffer, 0, sizeof(echoBuffer));
+    do {
+        ret = wolfSSL_read(ssl, echoBuffer, sizeof(echoBuffer)-1);
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    printf("Read (%d): %s\n", err, echoBuffer);
+
+    do {
+        ret = wolfSSL_write(ssl, echoBuffer, XSTRLEN((char*)echoBuffer));
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    printf("Sent (%d): %s\n", err, echoBuffer);
+
+    ret = 0; /* Success */
+
+done:
+    if (ssl) {
+        wolfSSL_shutdown(ssl);
+        wolfSSL_free(ssl);
+    }
+    if (ctx) {
+        wolfSSL_CTX_free(ctx);
+    }
+
+    return ret;
+}
+
+static int tls13_uart_client(void)
+{
+    int ret = -1, err;
+    WOLFSSL_CTX* ctx = NULL;
+    WOLFSSL* ssl = NULL;
+    const char testStr[] = "Testing 1, 2 and 3\r\n";
+    byte readBuf[100];
+    tls13_buf tbuf;
+
+    XMEMSET(&tbuf, 0, sizeof(tbuf));
+    /* TODO: Flush any data in the RX buffer */
+
+    ctx = wolfSSL_CTX_new(wolfTLSv1_3_client_method());
+    if (ctx == NULL) {
+        printf("Error creating WOLFSSL_CTX\n");
+        goto done;
+    }
+
+    /* Register wolfSSL send/recv callbacks */
+    wolfSSL_CTX_SetIOSend(ctx, uartIOTx);
+    wolfSSL_CTX_SetIORecv(ctx, uartIORx);
+
+    /* For testing disable peer cert verification */
+    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+
+    ssl = wolfSSL_new(ctx);
+    if (ssl == NULL) {
+        printf("Error creating WOLFSSL\n");
+        goto done;
+    }
+
+    wolfSSL_SetIOReadCtx(ssl, &tbuf);
+
+#ifdef HAVE_PQC
+    if (wolfSSL_UseKeyShare(ssl, WOLFSSL_KYBER_LEVEL1) != WOLFSSL_SUCCESS) {
+        printf("wolfSSL_UseKeyShare Error!!");
+    }
+#endif
+
+    do {
+        ret = wolfSSL_connect(ssl);
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    if (ret != WOLFSSL_SUCCESS) {
+        printf("TLS connect error %d\n", err);
+        goto done;
+    }
+
+    printf("TLS Connect handshake done\n");
+    printf("Sending test string\n");
+    do {
+        ret = wolfSSL_write(ssl, testStr, XSTRLEN(testStr));
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    printf("Sent (%d): %s\n", err, testStr);
+
+    XMEMSET(readBuf, 0, sizeof(readBuf));
+    do {
+        ret = wolfSSL_read(ssl, readBuf, sizeof(readBuf)-1);
+        err = wolfSSL_get_error(ssl, ret);
+    } while (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE);
+    printf("Read (%d): %s\n", err, readBuf);
+
+    ret = 0; /* Success */
+
+done:
+    if (ssl) {
+        wolfSSL_shutdown(ssl);
+        wolfSSL_free(ssl);
+    }
+    if (ctx) {
+        wolfSSL_CTX_free(ctx);
+    }
+
+    return ret;
+}
 
 /*****************************************************************************
  * Public functions
@@ -1595,6 +1835,26 @@ void wolfCryptDemo(const void* argument)
         #else
             printf("Not compiled in\n");
         #endif
+            break;
+
+        case 's':
+        #if !defined(NO_WOLFSSL_SERVER) && defined(WOLFSSL_TLS13)
+            printf("Running TLS 1.3 server...\n");
+            args.return_code = tls13_uart_server();
+        #else
+            args.return_code = NOT_COMPILED_IN;
+        #endif
+            printf("TLS 1.3 Server: Return code %d\n", args.return_code);
+            break;
+
+        case 'c':
+        #if !defined(NO_WOLFSSL_CLIENT) && defined(WOLFSSL_TLS13)
+            printf("Running TLS 1.3 client...\n");
+            args.return_code = tls13_uart_client();
+        #else
+            args.return_code = NOT_COMPILED_IN;
+        #endif
+            printf("TLS 1.3 Client: Return code %d\n", args.return_code);
             break;
 
 			// All other cases go here

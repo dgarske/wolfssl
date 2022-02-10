@@ -7041,7 +7041,7 @@ static int TLSX_KeyShare_GenOqsKey(WOLFSSL *ssl, KeyShareEntry* kse)
 
     return ret;
 }
-#endif
+#endif /* HAVE_PQM4 */
 #endif /* HAVE_PQC */
 
 /* Generate a secret/key using the key share entry.
@@ -7901,7 +7901,7 @@ static int TLSX_KeyShare_ProcessOqs(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
     wc_ecc_free(&eccpubkey);
     return ret;
 }
-#endif
+#endif /* HAVE_PQM4 */
 #endif /* HAVE_PQC */
 
 /* Process the key share extension on the client side.
@@ -8508,7 +8508,7 @@ static int server_generate_oqs_ciphertext(WOLFSSL* ssl,
     wc_ecc_free(&eccpubkey);
     return ret;
 }
-#endif
+#endif /* HAVE_PQM4 */
 #endif /* HAVE_PQC */
 
 /* Use the data to create a new key share object in the extensions.
@@ -10720,6 +10720,7 @@ static int TLSX_PopulateSupportedGroups(WOLFSSL* ssl, TLSX** extensions)
 
 #ifdef HAVE_PQC
     ret = TLSX_UseSupportedCurve(extensions, WOLFSSL_KYBER_LEVEL1, ssl->heap);
+#if HAVE_LIBOQS
     if (ret == WOLFSSL_SUCCESS)
         ret = TLSX_UseSupportedCurve(extensions, WOLFSSL_KYBER_LEVEL3,
                                      ssl->heap);
@@ -10796,6 +10797,7 @@ static int TLSX_PopulateSupportedGroups(WOLFSSL* ssl, TLSX** extensions)
         ret = TLSX_UseSupportedCurve(extensions, WOLFSSL_P521_KYBER_90S_LEVEL5,
                                      ssl->heap);
 
+#endif /* HAVE_LIBOQS */
 #endif /* HAVE_PQC */
 
     (void)ssl;

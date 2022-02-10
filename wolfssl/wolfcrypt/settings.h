@@ -2596,11 +2596,18 @@ extern void uITRON4_free(void *p) ;
 #define HAVE_KYBER
 #endif
 
-#if defined(HAVE_PQC) && !defined(HAVE_LIBOQS) && !defined(HAVE_PQM4)
-/* You need a post-quantum cryptography implementation to use PQC. */
-/* We support liboqs and pqm4 */
+#ifdef HAVE_PQM4
+#define HAVE_PQC
+#define HAVE_KYBER
 #endif
 
+#if defined(HAVE_PQC) && !defined(HAVE_LIBOQS) && !defined(HAVE_PQM4)
+#error Please do not define HAVE_PQC yourself.
+#endif
+
+#if defined(HAVE_PQC) && defined(HAVE_LIBOQS) && defined(HAVE_PQM4)
+#error Please do not define both HAVE_LIBOQS and HAVE_PQM4.
+#endif
 
 /* SRTP requires DTLS */
 #if defined(WOLFSSL_SRTP) && !defined(WOLFSSL_DTLS)
