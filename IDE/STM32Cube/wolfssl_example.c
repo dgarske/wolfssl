@@ -107,7 +107,9 @@
 
 /* This sets which UART to use for the console.  It is something you will have
  * to configure in STMCubeIDE and then change here. */
+#ifndef HAL_CONSOLE_UART
 #define HAL_CONSOLE_UART huart3
+#endif
 extern UART_HandleTypeDef HAL_CONSOLE_UART;
 
 /*****************************************************************************
