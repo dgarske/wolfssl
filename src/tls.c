@@ -6853,7 +6853,7 @@ static void findEccPqc(int *ecc, int *pqc, int group)
  * returns 0 on success, otherwise failure.
  */
 #ifdef HAVE_LIBOQS
-static int TLSX_KeyShare_GenOqsKey(WOLFSSL *ssl, KeyShareEntry* kse)
+static int TLSX_KeyShare_GenPqcKey(WOLFSSL *ssl, KeyShareEntry* kse)
 {
     int ret = 0;
     const char* algName = NULL;
@@ -6955,7 +6955,7 @@ static int TLSX_KeyShare_GenOqsKey(WOLFSSL *ssl, KeyShareEntry* kse)
     return ret;
 }
 #elif defined(HAVE_PQM4)
-static int TLSX_KeyShare_GenOqsKey(WOLFSSL *ssl, KeyShareEntry* kse)
+static int TLSX_KeyShare_GenPqcKey(WOLFSSL *ssl, KeyShareEntry* kse)
 {
 	/* This assumes KYBER LEVEL implementation is compiled in. */
     int ret = 0;
@@ -7061,7 +7061,7 @@ static int TLSX_KeyShare_GenKey(WOLFSSL *ssl, KeyShareEntry *kse)
         ret = TLSX_KeyShare_GenX448Key(ssl, kse);
 #ifdef HAVE_PQC
     else if (kse->group >= WOLFSSL_PQC_MIN && kse->group <= WOLFSSL_PQC_MAX)
-        ret = TLSX_KeyShare_GenOqsKey(ssl, kse);
+        ret = TLSX_KeyShare_GenPqcKey(ssl, kse);
 #endif
     else
         ret = TLSX_KeyShare_GenEccKey(ssl, kse);
@@ -7628,7 +7628,7 @@ static int TLSX_KeyShare_ProcessEcc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
  * keyShareEntry  The key share entry object to use to calculate shared secret.
  * returns 0 on success and other values indicate failure.
  */
-static int TLSX_KeyShare_ProcessOqs(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+static int TLSX_KeyShare_ProcessPqc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
 {
     int           ret = 0;
     const char*   algName = NULL;
@@ -7772,7 +7772,7 @@ static int TLSX_KeyShare_ProcessOqs(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
     return ret;
 }
 #elif defined(HAVE_PQM4)
-static int TLSX_KeyShare_ProcessOqs(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+static int TLSX_KeyShare_ProcessPqc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
 {
     int           ret = 0;
     byte*         sharedSecret = NULL;
@@ -7932,7 +7932,7 @@ static int TLSX_KeyShare_Process(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
 #ifdef HAVE_PQC
     else if (keyShareEntry->group >= WOLFSSL_PQC_MIN &&
              keyShareEntry->group <= WOLFSSL_PQC_MAX)
-        ret = TLSX_KeyShare_ProcessOqs(ssl, keyShareEntry);
+        ret = TLSX_KeyShare_ProcessPqc(ssl, keyShareEntry);
 #endif
     else
         ret = TLSX_KeyShare_ProcessEcc(ssl, keyShareEntry);
@@ -8238,7 +8238,7 @@ static int TLSX_KeyShare_New(KeyShareEntry** list, int group, void *heap,
 
 #ifdef HAVE_PQC
 #ifdef HAVE_LIBOQS
-static int server_generate_oqs_ciphertext(WOLFSSL* ssl,
+static int server_generate_pqc_ciphertext(WOLFSSL* ssl,
                                           KeyShareEntry* keyShareEntry,
                                           byte* data, word16 len) {
     /* I am the server. The data parameter is the client's public key. I need
@@ -8383,7 +8383,7 @@ static int server_generate_oqs_ciphertext(WOLFSSL* ssl,
     return ret;
 }
 #elif defined(HAVE_PQM4)
-static int server_generate_oqs_ciphertext(WOLFSSL* ssl,
+static int server_generate_pqc_ciphertext(WOLFSSL* ssl,
                                           KeyShareEntry* keyShareEntry,
                                           byte* data, word16 len) {
     /* I am the server. The data parameter is the client's public key. I need
@@ -8562,7 +8562,7 @@ int TLSX_KeyShare_Use(WOLFSSL* ssl, word16 group, word16 len, byte* data,
     if (group >= WOLFSSL_PQC_MIN &&
         group <= WOLFSSL_PQC_MAX &&
         ssl->options.side == WOLFSSL_SERVER_END) {
-        ret = server_generate_oqs_ciphertext(ssl, keyShareEntry, data,
+        ret = server_generate_pqc_ciphertext(ssl, keyShareEntry, data,
                                              len);
         if (ret != 0)
             return ret;
