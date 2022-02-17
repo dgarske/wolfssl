@@ -805,9 +805,9 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
 #ifdef HAVE_SOCKADDR
     int ret = 0;
     SOCKADDR_S addr;
-    int sockaddr_len = sizeof(SOCKADDR_IN);
+    int sockaddr_len;
     /* use gethostbyname for c99 */
-#if defined(HAVE_GETADDRINFO) && !defined(WOLF_C99)
+#if defined(HAVE_GETADDRINFO) || defined(WOLF_C99)
     ADDRINFO hints;
     ADDRINFO* answer = NULL;
     char strPort[6];
@@ -822,13 +822,22 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
     HOSTENT *entry;
 #endif
 #endif
+#ifdef WOLFSSL_IPV6
+    SOCKADDR_IN6 *sin;
+#else
     SOCKADDR_IN *sin;
 #endif
+#endif /* HAVE_SOCKADDR */
 
     if (sockfd == NULL || ip == NULL) {
         return -1;
     }
 
+#ifdef WOLFSSL_IPV6
+    sockaddr_len = sizeof(SOCKADDR_IN6);
+#else
+    sockaddr_len = sizeof(SOCKADDR_IN);
+#endif
     XMEMSET(&addr, 0, sizeof(addr));
 
 #ifdef WOLFIO_DEBUG
@@ -836,9 +845,13 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
 #endif
 
     /* use gethostbyname for c99 */
-#if defined(HAVE_GETADDRINFO) && !defined(WOLF_C99)
+#if defined(HAVE_GETADDRINFO) || defined(WOLF_C99)
     XMEMSET(&hints, 0, sizeof(hints));
+    #ifdef WOLFSSL_IPV6
+    hints.ai_family = AF_INET6;
+    #else
     hints.ai_family = AF_UNSPEC;
+    #endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
@@ -855,7 +868,7 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
     sockaddr_len = answer->ai_addrlen;
     XMEMCPY(&addr, answer->ai_addr, sockaddr_len);
     freeaddrinfo(answer);
-#elif defined(WOLFSSL_USE_POPEN_HOST)
+#elif defined(WOLFSSL_USE_POPEN_HOST) && !defined(WOLFSSL_IPV6)
     {
         char host_ipaddr[4] = { 127, 0, 0, 1 };
         int found = 1;
@@ -907,10 +920,9 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
         }
         if (found) {
             sin = (SOCKADDR_IN *)&addr;
-
             sin->sin_family = AF_INET;
             sin->sin_port = XHTONS(port);
-            XMEMCPY(&sin->sin_addr.s_addr, host_ipaddr, sizeof(host_ipaddr));
+            XMEMCPY(&sin->sin_addr.s_addr, host_ipaddr, sizeof(host_ipaddr));        
         }
         else {
             WOLFSSL_MSG("no addr info for responder");
@@ -932,12 +944,19 @@ int wolfIO_TcpConnect(SOCKET_T* sockfd, const char* ip, word16 port, int to_sec)
 #else
     entry = gethostbyname(ip);
 #endif
-    sin = (SOCKADDR_IN *)&addr;
 
     if (entry) {
+    #ifdef WOLFSSL_IPV6
+        sin = (SOCKADDR_IN6 *)&addr;
+        sin->sin6_family = AF_INET6;
+        sin->sin6_port = XHTONS(port);
+        XMEMCPY(&sin->sin6_addr, entry->h_addr_list[0], entry->h_length);
+    #else
+        sin = (SOCKADDR_IN *)&addr;
         sin->sin_family = AF_INET;
         sin->sin_port = XHTONS(port);
         XMEMCPY(&sin->sin_addr.s_addr, entry->h_addr_list[0], entry->h_length);
+    #endif
     }
 
 #if defined(__GLIBC__) && (__GLIBC__ >= 2) && defined(__USE_MISC) && \
