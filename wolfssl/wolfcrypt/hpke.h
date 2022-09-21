@@ -23,6 +23,10 @@
     \file wolfssl/wolfcrypt/hpke.h
 */
 
+#include <wolfssl/wolfcrypt/types.h>
+
+#include <wolfssl/wolfcrypt/ecc.h>
+
 #ifdef __cplusplus
     extern "C" {
 #endif
@@ -49,6 +53,16 @@ enum {
     HPKE_AES_256_GCM = 0x0002,
 };
 
+#define HPKE_Nh_MAX 64
+#define HPKE_Nk_MAX 32
+#define HPKE_Nn_MAX 12
+#define HPKE_Nt_MAX 16
+#define HPKE_Ndh_MAX 66
+#define HPKE_Npk_MAX 133
+#define HPKE_Nsecret_MAX 64
+#define KEM_SUITE_ID_LEN 5
+#define HPKE_SUITE_ID_LEN 10
+
 typedef struct {
     int kem;
     int kdf;
@@ -60,30 +74,36 @@ typedef struct {
     int Ndh;
     int Npk;
     int Nsecret;
-    uint8_t kem_suite_id[5];
-    uint8_t hpke_suite_id[10];
+    byte kem_suite_id[5];
+    byte hpke_suite_id[10];
     ecc_key receiver_key[1];
-    bool receiver_key_set;
+    byte receiver_pubkey_set:1;
+    byte receiver_privkey_set:1;
     int kdf_digest;
     int curve_id;
+    void* heap;
 } Hpke;
 
 typedef struct {
     int seq;
-    uint8_t key[32]; /* TODO: Use const/enum/define for these */
-    uint8_t base_nonce[12];
-    uint8_t exporter_secret[64];
+    byte key[HPKE_Nk_MAX];
+    byte base_nonce[HPKE_Nn_MAX];
+    byte exporter_secret[HPKE_Nsecret_MAX];
 } HpkeBaseContext;
 
 WOLFSSL_API int wc_HpkeInit(Hpke* hpke, int kem, int kdf, int aead, void* heap);
 WOLFSSL_API int wc_HpkeGenerateKeyPair(Hpke* hpke, ecc_key* keypair);
-WOLFSSL_API int wc_HpkeSerializePublicKey(ecc_key* key, uint8_t* out);
-WOLFSSL_API int wc_HpkeDeserializePublicKey(Hpke* hpke, ecc_key* key, uint8_t* in);
-WOLFSSL_API int wc_HpkeSealBase(Hpke* hpke, uint8_t* info, uint32_t info_len,
-    uint8_t* aad, uint32_t aad_len, uint8_t* plaintext, uint32_t pt_len, uint8_t* out);
-WOLFSSL_API int wc_HpkeOpenBase(Hpke* hpke, uint8_t* enc,
-    uint8_t* info, uint32_t info_len, uint8_t* aad, uint32_t aad_len,
-    uint8_t* ciphertext, uint32_t ct_len, uint8_t* plaintext);
+WOLFSSL_API int wc_HpkeSerializePublicKey(ecc_key* key, byte* out);
+WOLFSSL_API int wc_HpkeDeserializePublicKey(Hpke* hpke, ecc_key* key, byte* in);
+WOLFSSL_API
+int wc_HpkeSealBase(Hpke* hpke, byte* info, word32 info_len, byte* aad,
+    word32 aad_len, byte* plaintext, word32 pt_len, byte* ciphertext,
+    byte* enc);
+WOLFSSL_API
+int wc_HpkeOpenBase(Hpke* hpke, byte* enc, byte* info, word32 info_len,
+    byte* aad, word32 aad_len, byte* ciphertext, word32 ct_len,
+    byte* plaintext);
+WOLFSSL_API void wc_HpkeFree(Hpke* hpke);
 
 #ifdef __cplusplus
     }    /* extern "C" */

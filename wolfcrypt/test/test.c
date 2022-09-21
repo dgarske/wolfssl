@@ -437,6 +437,7 @@ WOLFSSL_TEST_SUBROUTINE int  sshkdf_test(void);
 WOLFSSL_TEST_SUBROUTINE int  tls13_kdf_test(void);
 #endif
 WOLFSSL_TEST_SUBROUTINE int  x963kdf_test(void);
+WOLFSSL_TEST_SUBROUTINE int  hpke_test(void);
 WOLFSSL_TEST_SUBROUTINE int  arc4_test(void);
 #ifdef WC_RC2
 WOLFSSL_TEST_SUBROUTINE int  rc2_test(void);
@@ -22259,19 +22260,19 @@ WOLFSSL_TEST_SUBROUTINE int x963kdf_test(void)
 
 WOLFSSL_TEST_SUBROUTINE int hpke_test(void)
 {
-    int i;
     int ret;
     Hpke hpke[1];
     const char* start_text = "this is a test";
-    uint8_t ciphertext[512] = { 0 };
-    uint8_t plaintext[512] = { 0 };
+    byte ciphertext[512] = { 0 };
+    byte plaintext[512] = { 0 };
     // 133 bytes is the max for each of the 2 points that make up the public key
     uint8_t enc[133];
     //const uint8_t serialized_pubkey[] = {0x04, 0x53, 0x21, 0x3f, 0x7d, 0xb7, 0xb5, 0xa4, 0x59, 0x90, 0xf8, 0xd5, 0x97, 0x18, 0x63, 0x2d, 0x64, 0x2b, 0x75, 0x1c, 0x20, 0x78, 0xd1, 0xf3, 0xd9, 0xa7, 0x4e, 0x6b, 0xd1, 0x25, 0xb3, 0x3a, 0x7b, 0xab, 0x62, 0xc1, 0x36, 0xee, 0x9f, 0x8f, 0xba, 0xa5, 0x56, 0x3d, 0x2d, 0x0a, 0xe1, 0x1c, 0x85, 0xe7, 0xe6, 0x72, 0x2a, 0xeb, 0x97, 0x5f, 0x33, 0xd2, 0xc5, 0xa7, 0x68, 0x58, 0xeb, 0xd2, 0x76};
 
     //ret = wc_HpkeInit( hpke, DHKEM_P256_HKDF_SHA256, WC_SHA256, HPKE_AES_256_GCM, NULL );
-    ret = wc_HpkeInit( hpke, DHKEM_P256_HKDF_SHA256, HKDF_SHA256, HPKE_AES_128_GCM, NULL );
-    if ( ret == 0 )
+    ret = wc_HpkeInit(hpke, DHKEM_P256_HKDF_SHA256, HKDF_SHA256, HPKE_AES_128_GCM, NULL);
+
+    if (ret == 0)
         ret = wc_HpkeGenerateKeyPair( hpke, hpke->receiver_key );
 
     /*
@@ -22279,11 +22280,12 @@ WOLFSSL_TEST_SUBROUTINE int hpke_test(void)
         ret = wc_HpkeDeserializePublicKey( hpke, hpke->receiver_key, serialized_pubkey );
     */
 
-    if ( ret == 0 )
+    if (ret == 0)
     {
-        hpke->receiver_key_set = true;
+        hpke->receiver_pubkey_set = 1;
+        hpke->receiver_privkey_set = 1;
 
-        ret = wc_HpkeSealBase( hpke, "info", strlen( "info" ), "aad", strlen( "aad" ), start_text, strlen( start_text ), ciphertext, enc );
+        ret = wc_HpkeSealBase(hpke, (byte*)"info", strlen( "info" ), (byte*)"aad", strlen( "aad" ), (byte*)start_text, strlen( start_text ), ciphertext, enc);
     }
 
     /*
@@ -22304,20 +22306,15 @@ WOLFSSL_TEST_SUBROUTINE int hpke_test(void)
     printf( "\n" );
     */
 
-    if ( ret == 0 )
-    ret = wc_HpkeOpenBase( hpke, enc, "info", strlen( "info" ), "aad", strlen( "aad" ), ciphertext, strlen( start_text ), plaintext );
+    if (ret == 0)
+        ret = wc_HpkeOpenBase(hpke, enc, (byte*)"info", strlen( "info" ), (byte*)"aad", strlen( "aad" ), ciphertext, strlen( start_text ), plaintext);
 
-    if ( ret == 0 )
-    {
-        //printf( "plaintext\n" );
+    if (ret == 0)
+        ret = XMEMCMP(plaintext, start_text, strlen( start_text ));
 
-        for ( i = 0; i < strlen( start_text ); i++ )
-        {
-            printf( "%c", plaintext[i] );
-        }
+    wc_HpkeFree( hpke );
 
-        printf( "\n" );
-    }
+    return ret;
 }
 #endif /* HAVE_HPKE */
 
