@@ -78,6 +78,13 @@ This library provides single precision (SP) integer math functions.
  * WOLFSSL_SP_ARM_CORTEX_M_ASM  Enable Cortex-M assembly implementation
  * WOLFSSL_SP_ARM_THUMB_ASM     Enable ARM Thumb assembly implementation
  *      (used with -mthumb)
+ * WOLFSSL_SP_USE_UDIV          Enables UDIV instruction
+ *   Applies to SP CORTEX_M and ARM32 only.
+ *   The UDIV instruction is not always available and can be slow (2-12 cycles).
+ *   It is an unsigned divide of 32-bit by 32-bit
+ *     (we do 32-bit divide by 16-bit).
+ *   The option affects divide operations which are only used in modulo
+ *   operations. Generic modulo is used when converting to Montgomery form.
  * WOLFSSL_SP_X86_64            Enable Intel x86 64-bit assembly speedups
  * WOLFSSL_SP_X86               Enable Intel x86 assembly speedups
  * WOLFSSL_SP_ARM64             Enable Aarch64 assembly speedups
