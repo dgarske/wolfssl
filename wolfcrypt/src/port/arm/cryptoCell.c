@@ -30,12 +30,39 @@
     include this .c directly */
 #ifdef WOLFSSL_CRYPTOCELL_C
 
-#ifdef WOLFSSL_CRYPTOCELL
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
+
+#include <wolfssl/wolfcrypt/port/arm/cryptoCell.h>
+
+#if defined(WOLFSSL_CRYPTOCELL_312)
+
+int cc310_Init(void)
+{
+    return nrf_cc3xx_platform_init(); /* NRF_CC3XX_PLATFORM_SUCCESS == 0 */
+}
+
+void cc310_Free(void)
+{
+
+}
+
+#ifndef WC_NO_RNG
+#include "nrf_cc3xx_platform_entropy.h"
+int cc310_random_generate(byte* output, word32 size)
+{
+    size_t olen = 0;
+    int ret = nrf_cc3xx_platform_entropy_get(output, size, &olen);
+    (void)olen;
+    return ret;
+}
+#endif
+
+
+#elif defined(WOLFSSL_CRYPTOCELL)
 
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/wolfcrypt/ecc.h>
-#include <wolfssl/wolfcrypt/port/arm/cryptoCell.h>
 
 #ifdef NO_INLINE
     #include <wolfssl/wolfcrypt/misc.h>
@@ -211,7 +238,10 @@ CRYS_ECPKI_HASH_OpMode_t cc310_hashModeECC(int hash_size)
     return hash_mode;
 }
 #endif /* HAVE_ECC */
-#endif /* WOLFSSL_CRYPTOCELL*/
+
+#endif /* WOLFSSL_CRYPTOCELL */
+#endif /* WOLFSSL_CRYPTOCELL || WOLFSSL_CRYPTOCELL_312 */
+
 
 #if !defined(NO_CRYPT_BENCHMARK) && defined(WOLFSSL_nRF5x_SDK_15_2)
 

@@ -132,6 +132,10 @@
     #include <pthread.h>
 #endif
 
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
+    #include <wolfssl/wolfcrypt/port/arm/cryptoCell.h>
+#endif
+
 /* prevent multiple mutex initializations */
 static volatile int initRefCount = 0;
 
@@ -248,7 +252,7 @@ int wolfCrypt_Init(void)
             return ret;
         }
     #endif
-    #if defined(WOLFSSL_CRYPTOCELL)
+    #if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
         /* enable and initialize the ARM CryptoCell 3xx runtime library */
         ret = cc310_Init();
         if (ret != 0) {
@@ -455,7 +459,7 @@ int wolfCrypt_Cleanup(void)
     #if defined(WOLFSSL_CAAM)
         wc_caamFree();
     #endif
-    #if defined(WOLFSSL_CRYPTOCELL)
+    #if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
         cc310_Free();
     #endif
     #ifdef WOLFSSL_SILABS_SE_ACCEL
@@ -3414,7 +3418,7 @@ char* mystrnstr(const char* s1, const char* s2, unsigned int n)
     #include <wolfcrypt/src/port/ti/ti-hash.c> /* md5, sha1, sha224, sha256 */
 #endif
 
-#if defined(WOLFSSL_CRYPTOCELL)
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
     #define WOLFSSL_CRYPTOCELL_C
     #include <wolfcrypt/src/port/arm/cryptoCell.c> /* CC310, RTC and RNG */
     #if !defined(NO_SHA256)

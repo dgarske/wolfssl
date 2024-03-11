@@ -80,7 +80,7 @@
 #if defined(WOLFSSL_ESP32_CRYPT)
     #include "wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h"
 #endif
-#if defined(WOLFSSL_CRYPTOCELL)
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
     #include <wolfssl/wolfcrypt/port/arm/cryptoCell.h>
 #endif
 #if defined(WOLFSSL_SILABS_SE_ACCEL)
@@ -211,6 +211,9 @@ struct wc_Sha256 {
 #endif
 #ifdef WOLFSSL_CRYPTOCELL
     CRYS_HASHUserContext_t ctx;
+#endif
+#ifdef WOLFSSL_CRYPTOCELL_312
+    //HashContext_t ctx;
 #endif
 #ifdef WOLFSSL_KCAPI_HASH
     wolfssl_KCAPI_Hash kcapi;

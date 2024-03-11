@@ -118,6 +118,7 @@ on the specific device platform.
 #if defined(WOLFSSL_TI_HASH)
     /* #include <wolfcrypt/src/port/ti/ti-hash.c> included by wc_port.c */
 #elif defined(WOLFSSL_CRYPTOCELL)
+//|| defined(WOLFSSL_CRYPTOCELL_312)
     /* wc_port.c includes wolfcrypt/src/port/arm/cryptoCellHash.c */
 
 #elif defined(WOLFSSL_PSOC6_CRYPTO)

@@ -132,7 +132,7 @@ WOLFSSL_LOCAL void GHASH(Gcm* gcm, const byte* a, word32 aSz, const byte* c,
 #include <psa/crypto.h>
 #endif
 
-#if defined(WOLFSSL_CRYPTOCELL)
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
     #include <wolfssl/wolfcrypt/port/arm/cryptoCell.h>
 #endif
 

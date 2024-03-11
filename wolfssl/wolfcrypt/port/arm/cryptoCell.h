@@ -1,6 +1,6 @@
 /* cryptoCell.h
  *
- * Copyright (C) 2006-2023 wolfSSL Inc.
+ * Copyright (C) 2006-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -22,13 +22,27 @@
 #ifndef WOLFSSL_CRYPTOCELL_H
 #define WOLFSSL_CRYPTOCELL_H
 
-#if defined(WOLFSSL_CRYPTOCELL)
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <wolfssl/wolfcrypt/types.h>
+#include <wolfssl/wolfcrypt/settings.h>
 
+#if defined(WOLFSSL_CRYPTOCELL_312)
+
+#include "nrf_cc3xx_platform.h"
+#if 0
+    #include "driver_defs.h"
+    #include "hash_driver.h"
+    #undef AES_IV_SIZE
+    #undef AES_BLOCK_SIZE
+    #undef min
+    #undef max
+#endif
+
+#elif defined(WOLFSSL_CRYPTOCELL)
+
+#include <wolfssl/wolfcrypt/types.h>
 #include "sns_silib.h"
 
 #ifndef NO_SHA256
@@ -51,20 +65,19 @@ extern "C" {
 
 #if !defined(WC_NO_RNG)
     #if defined(WOLFSSL_nRF5x_SDK_15_2)
+        /* To fix warning. MIN/MAX are defined in tfm.h and Nordic (re)defines them */
+        #define WOLFSSL_HAVE_MIN
+        #define WOLFSSL_HAVE_MAX
 
-/* To fix warning. MIN/MAX are defined in tfm.h and Nordic (re)defines them */
-        #undef MIN
-        #undef MAX
-/* includes to use RNG on the nRF52 */
+        /* includes to use RNG on the nRF52 */
         #include "nrf_drv_rng.h"
         #include "nrf_assert.h"
     #endif
 
-    /*RNG Global variables*/
+    /* RNG Global variables */
     extern CRYS_RND_State_t     wc_rndState;
     extern CRYS_RND_WorkBuff_t  wc_rndWorkBuff;
     extern SaSiRndGenerateVectWorkFunc_t wc_rndGenVectFunc;
-    int    cc310_random_generate(byte* output, word32 size);
 #endif
 
 #ifndef NO_RSA
@@ -107,11 +120,19 @@ CRYS_ECPKI_HASH_OpMode_t cc310_hashModeECC(int hash_size);
     #include <stdbool.h>
 #endif /* NO_CRYPT_BENCHMARK && WOLFSSL_nRF5x_SDK_15_2*/
 
-int  cc310_Init(void);
-void cc310_Free(void);
+#endif /* WOLFSSL_CRYPTOCELL */
+
+#if defined(WOLFSSL_CRYPTOCELL) || defined(WOLFSSL_CRYPTOCELL_312)
+    int  cc310_Init(void);
+    void cc310_Free(void);
+
+    #if !defined(WC_NO_RNG)
+        int cc310_random_generate(byte* output, word32 size);
+    #endif
+#endif /* WOLFSSL_CRYPTOCELL || WOLFSSL_CRYPTOCELL_312 */
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* WOLFSSL_CRYPTOCELL */
+
 #endif /* WOLFSSL_CRYPTOCELL_H */

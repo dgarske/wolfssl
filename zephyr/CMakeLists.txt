@@ -1,20 +1,23 @@
 if(CONFIG_WOLFSSL)
   zephyr_interface_library_named(wolfSSL)
-  
+
   if(CONFIG_WOLFSSL_BUILTIN)
     target_compile_definitions(wolfSSL INTERFACE
   	WOLFSSL_SETTINGS_FILE="${CONFIG_WOLFSSL_SETTINGS_FILE}"
   	)
-  
+
     zephyr_include_directories(
   	${ZEPHYR_CURRENT_MODULE_DIR}
   	${ZEPHYR_CURRENT_MODULE_DIR}/wolfssl
   	${ZEPHYR_CURRENT_MODULE_DIR}/zephyr
+    ${ZEPHYR_BASE}/../modules/tee/tf-m/trusted-firmware-m/lib/ext/cryptocell-312-runtime/shared/include/pal
+    ${ZEPHYR_BASE}/../modules/tee/tf-m/trusted-firmware-m/lib/ext/cryptocell-312-runtime/codesafe/src/crypto_api/cc3x_sym/driver
+    ${ZEPHYR_BASE}/../modules/tee/tf-m/trusted-firmware-m/lib/ext/cryptocell-312-runtime/shared/include/pal/mbedos
   	)
-  
+
     zephyr_library()
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/zephyr/zephyr_init.c)
-  
+
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/crl.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/dtls13.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/internal.c)
@@ -25,7 +28,7 @@ if(CONFIG_WOLFSSL)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/tls.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/tls13.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/src/wolfio.c)
-  
+
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/aes.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/arc4.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/asm.c)
@@ -115,7 +118,7 @@ if(CONFIG_WOLFSSL)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/port/psa/psa_hash.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/port/psa/psa_pkcbs.c)
     zephyr_library_sources(${ZEPHYR_CURRENT_MODULE_DIR}/wolfcrypt/src/port/st/stm32.c)
-  
+
     zephyr_library_link_libraries(wolfSSL)
 
   	target_compile_definitions(wolfSSL INTERFACE WOLFSSL_ZEPHYR)
@@ -125,14 +128,14 @@ if(CONFIG_WOLFSSL)
     endif()
   else()
     assert(CONFIG_WOLFSSL_LIBRARY "wolfSSL was enabled, but neither BUILTIN or LIBRARY was selected.")
-  
+
     # NB: CONFIG_WOLFSSL_LIBRARY is not regression tested and is
     # therefore susceptible to bit rot
-  
+
     target_include_directories(wolfSSL INTERFACE
   	${CONFIG_WOLFSSL_INSTALL_PATH}
   	)
-  
+
     zephyr_link_libraries(
       wolfssl_external
       -L${CONFIG_WOLFSSL_INSTALL_PATH}
@@ -142,7 +145,7 @@ if(CONFIG_WOLFSSL)
     # wolfssl to link with gcc we need to ensure it is placed
     # after wolfssl_external on the linkers command line.
   endif()
-  
+
   target_link_libraries(wolfSSL INTERFACE zephyr_interface)
 
 endif()
