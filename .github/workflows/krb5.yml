@@ -15,7 +15,7 @@ jobs:
         uses: wolfSSL/actions-build-autotools-project@v1
         with:
           path: wolfssl
-          configure: --enable-krb CFLAGS='-fsanitize=address'
+          configure: --enable-krb CFLAGS='-fsanitize=address' LDFLAGS='-fsanitize=address'
           install: true
 
       - name: Upload built lib
