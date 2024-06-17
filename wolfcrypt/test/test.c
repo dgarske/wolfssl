@@ -53217,6 +53217,10 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t cryptocb_test(void)
     if (ret == 0)
         ret = hmac_sha256_test();
     #endif
+    #ifdef WOLFSSL_SHA3
+    if (ret == 0)
+        ret = hmac_sha3_test();
+    #endif
 #endif
 #ifndef NO_PWDBASED
     #if defined(HAVE_PBKDF2) && !defined(NO_SHA256) && !defined(NO_HMAC)
