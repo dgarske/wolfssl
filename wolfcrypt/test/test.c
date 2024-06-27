@@ -29170,7 +29170,7 @@ static wc_test_ret_t ecc384_test_deterministic_k(WC_RNG* rng)
 #endif
     int key_inited = 0;
     WOLFSSL_SMALL_STACK_STATIC const unsigned char msg[] = "sample";
-    unsigned char hash[32];
+    unsigned char hash[WC_MAX_DIGEST_SIZE];
     WOLFSSL_SMALL_STACK_STATIC const char* dIUT =
         "6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D8"
         "96D5724E4C70A825F872C9EA60D2EDF5";
@@ -29186,6 +29186,18 @@ static wc_test_ret_t ecc384_test_deterministic_k(WC_RNG* rng)
     WOLFSSL_SMALL_STACK_STATIC const char* expSstr =
        "F3AA443FB107745BF4BD77CB3891674632068A10CA67E3D45DB2266FA7D1FEEB"
        "EFDC63ECCD1AC42EC0CB8668A4FA0AB0";
+    WOLFSSL_SMALL_STACK_STATIC const char* expRstr384 =
+        "94EDBB92A5ECB8AAD4736E56C691916B3F88140666CE9FA73D64C4EA95AD133C"
+        "81A648152E44ACF96E36DD1E80FABE46";
+    WOLFSSL_SMALL_STACK_STATIC const char* expSstr384 =
+        "99EF4AEB15F178CEA1FE40DB2603138F130E740A19624526203B6351D0A3A94F"
+        "A329C145786E679E7B82C71A38628AC8";
+    WOLFSSL_SMALL_STACK_STATIC const char* expRstr512 =
+        "ED0959D5880AB2D869AE7F6C2915C6D60F96507F9CB3E047C0046861DA4A799C"
+        "FE30F35CC900056D7C99CD7882433709";
+    WOLFSSL_SMALL_STACK_STATIC const char* expSstr512 =
+        "512C8CCEEE3890A84058CE1E22DBC2198F42323CE8ACA9135329F03C068E5112"
+        "DC7CC3EF3446DEFCEB01A45C2667FDD5";
 
 #ifdef WOLFSSL_SMALL_STACK
     key = (ecc_key *)XMALLOC(sizeof(*key), HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
@@ -29245,6 +29257,64 @@ static wc_test_ret_t ecc384_test_deterministic_k(WC_RNG* rng)
 
     mp_read_radix(expR, expRstr, MP_RADIX_HEX);
     mp_read_radix(expS, expSstr, MP_RADIX_HEX);
+    if (mp_cmp(r, expR) != MP_EQ) {
+        ret = WC_TEST_RET_ENC_NC;
+    }
+
+    ret = wc_Hash(WC_HASH_TYPE_SHA384, msg,
+            (word32)XSTRLEN((const char*)msg), hash, sizeof(hash));
+    if (ret != 0) {
+        goto done;
+    }
+
+    ret = wc_ecc_set_deterministic(key, 1);
+    if (ret != 0) {
+        goto done;
+    }
+
+    do {
+    #if defined(WOLFSSL_ASYNC_CRYPT)
+        ret = wc_AsyncWait(ret, key.asyncDev, WC_ASYNC_FLAG_CALL_AGAIN);
+    #endif
+        if (ret == 0)
+            ret = wc_ecc_sign_hash_ex(hash, sizeof(hash), rng, key, r, s);
+    } while (ret == WC_PENDING_E);
+    if (ret != 0) {
+        goto done;
+    }
+    TEST_SLEEP();
+
+    mp_read_radix(expR, expRstr384, MP_RADIX_HEX);
+    mp_read_radix(expS, expSstr384, MP_RADIX_HEX);
+    if (mp_cmp(r, expR) != MP_EQ) {
+        ret = WC_TEST_RET_ENC_NC;
+    }
+
+    ret = wc_Hash(WC_HASH_TYPE_SHA512, msg,
+            (word32)XSTRLEN((const char*)msg), hash, sizeof(hash));
+    if (ret != 0) {
+        goto done;
+    }
+
+    ret = wc_ecc_set_deterministic(key, 1);
+    if (ret != 0) {
+        goto done;
+    }
+
+    do {
+    #if defined(WOLFSSL_ASYNC_CRYPT)
+        ret = wc_AsyncWait(ret, key.asyncDev, WC_ASYNC_FLAG_CALL_AGAIN);
+    #endif
+        if (ret == 0)
+            ret = wc_ecc_sign_hash_ex(hash, sizeof(hash), rng, key, r, s);
+    } while (ret == WC_PENDING_E);
+    if (ret != 0) {
+        goto done;
+    }
+    TEST_SLEEP();
+
+    mp_read_radix(expR, expRstr512, MP_RADIX_HEX);
+    mp_read_radix(expS, expSstr512, MP_RADIX_HEX);
     if (mp_cmp(r, expR) != MP_EQ) {
         ret = WC_TEST_RET_ENC_NC;
     }
