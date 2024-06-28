@@ -7622,26 +7622,12 @@ int wc_ecc_gen_deterministic_k(const byte* hash, word32 hashSz,
     #endif
         qbits = mp_count_bits(order);
 
-        /* hash zero pad front if short */
-        if (((WOLFSSL_BIT_SIZE) * hashSz) < qbits) {
-            /* use V temp to zero pad hash */
-            XMEMSET(V, 0, sizeof(V));
-            XMEMCPY(V + (h1len - hashSz), hash, hashSz);
-            ret = mp_read_unsigned_bin(z1, V, h1len);
-        }
          /* hash truncate if too long */
-        else {
-            if (((WOLFSSL_BIT_SIZE) * hashSz) > qbits) {
-                /* calculate truncated hash size using bits rounded up byte */
-                hashSz = (qbits + ((WOLFSSL_BIT_SIZE) - 1)) / (WOLFSSL_BIT_SIZE);
-            }
-            ret = mp_read_unsigned_bin(z1, hash, hashSz);
-        }
-        /* if using a curve that is not a multiple of 8-bits
-         * (like 521) truncate bits */
         if (((WOLFSSL_BIT_SIZE) * hashSz) > qbits) {
-            mp_rshb(z1, (int)((WOLFSSL_BIT_SIZE) - (qbits & 0x7)));
+            /* calculate truncated hash size using bits rounded up byte */
+            hashSz = (qbits + ((WOLFSSL_BIT_SIZE) - 1)) / (WOLFSSL_BIT_SIZE);
         }
+        ret = mp_read_unsigned_bin(z1, hash, hashSz);
     }
 
     /* bits2octets on h1 */
@@ -7662,7 +7648,7 @@ int wc_ecc_gen_deterministic_k(const byte* hash, word32 hashSz,
                 ret = BUFFER_E;
             }
             else {
-                ret = mp_to_unsigned_bin_len(z1, h1, h1len);
+                ret = mp_to_unsigned_bin_len(z1, h1, (int)h1len);
             }
         }
         else
@@ -7760,10 +7746,6 @@ int wc_ecc_gen_deterministic_k(const byte* hash, word32 hashSz,
             }
         } while (ret == 0 && err != 0);
     }
-
-#ifdef WOLFSSL_DEBUG_MATH
-    mp_dump("sign_k", k, 0);
-#endif
 
     ForceZero(x, MAX_ECC_BYTES);
 #ifdef WOLFSSL_SMALL_STACK
