@@ -3,6 +3,7 @@
 This directory contains the CSharp wrapper for the wolfSSL TLS layer with examples.
 
 * `wolfSSL_CSharp`: wolfSSL TLS layer wrappers (library)
+* `wolfCrypt-Test`: wolfSSL TLS layer wrapper testing.
 
 Examples:
 * `wolfSSL-DTLS-PSK-Server`
@@ -19,6 +20,17 @@ Examples:
 A Visual Studio solution `wolfSSL_CSharp.sln` is provided. This will allow you
 to build the wrapper library and examples. It includes the wolfSSL Visual Studio
 project directly.
+
+To successfully run and build the solution on Windows Visual Studio you will
+need to open a new solution `wolfSSL_CSharp.sln` located in `wrapper\CSharp\wolfSSL_CSharp.sln`.
+
+Select the CPU type, configuration, and target file.
+select `Build` and either `Rebuild Solution` or `Build Solution`.
+
+If you have problems with the .dll you can change the output path by going into
+the Solution Explorer, left clicking the solution you wish to configure, select
+Properties and then Output Directory.
+The default is, `bin\$(Configuration)\$(Platform)\`
 
 ## Linux (Ubuntu) using mono
 
