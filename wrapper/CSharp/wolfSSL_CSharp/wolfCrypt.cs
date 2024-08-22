@@ -21,11 +21,11 @@
 
 using System;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.IO;
 
-namespace wolfSSL.CSharp {
+namespace wolfSSL.CSharp
+{
     public class wolfcrypt
     {
         private const string wolfssl_dll = "wolfssl.dll";
@@ -63,8 +63,163 @@ namespace wolfSSL.CSharp {
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_verify_hash(IntPtr sigPtr, uint siglen, IntPtr hashPtr, uint hashlen, IntPtr res, IntPtr key);
 
+        /* ASN.1 DER format */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_EccPrivateKeyDecode(IntPtr keyBuf, IntPtr idx, IntPtr key, uint keyBufSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_EccPublicKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_EccPrivateKeyToDer(IntPtr key, byte[] output, uint inLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_EccPublicKeyToDer(IntPtr key, byte[] output, uint inLen, int with_AlgCurve);
+
+        /* ASN.1 export private */
+        /* int wc_EccKeyToDer(ecc_key* key, byte* output, word32 inLen); */
+
+        /* RAW elements of ECC key (private d, public qX/qY) import and export and unsigned bin
+        /* int wc_ecc_import_raw_ex(ecc_key* key, const char* qx, const char* qy, const char* d, int curve_id) */
+        /* int wc_ecc_export_ex(ecc_key* key, byte* qx, word32* qxLen, byte* qy, word32* qyLen, byte* d, word32* dLen, int encType) */
+
+
+        /********************************
+         * RSA
+         */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr wc_NewRsaKey(IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_InitRsaKey(IntPtr key, IntPtr heap);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static void wc_FreeRsaKey(IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_MakeRsaKey(IntPtr key, int keysize, Int32 exponent, IntPtr rng);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaSSL_Sign(IntPtr hashPtr, int hashLen, IntPtr sigPtr, int sigLen, IntPtr key, IntPtr rng);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaSSL_Verify(IntPtr sigPtr, int sigLen, IntPtr hashPtr, int hashLen, IntPtr key);
+
+        /* ASN.1 DER format */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPublicEncrypt(IntPtr inPtr, int inLen, IntPtr outPtr, int outLen, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPrivateDecrypt(IntPtr inPtr, int inLen, IntPtr outPtr, int outLen, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPrivateKeyDecode(IntPtr keyBuf, IntPtr idx, IntPtr key, uint keyBufSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPublicKeyDecode(IntPtr keyBuf, IntPtr idx, IntPtr key, uint keyBufSz);
+
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPSS_Sign(IntPtr hashPtr, int hashLen, IntPtr sigPtr, int sigLen, int hashType, IntPtr rng, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPSS_Verify(IntPtr sigPtr, int sigLen, IntPtr hashPtr, int hashLen, int hashType, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_RsaPSS_CheckPadding(IntPtr sigPtr, int sigLen, int hashType, IntPtr key);
+
+
+        /********************************
+         * ED25519
+         */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr wc_ed25519_new(IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_init(IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern void wc_ed25519_free(IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_make_key(IntPtr rng, int keysize, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_sign_msg(IntPtr inMsg, uint inlen, IntPtr outMsg, ref uint outlen, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_verify_msg(IntPtr sig, uint siglen, IntPtr msg, uint msgLen, ref int ret, IntPtr key);
+
+        /* ASN.1 DER format */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Ed25519PrivateKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Ed25519PublicKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Ed25519KeyToDer(IntPtr key, byte[] output, uint inLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Ed25519PrivateKeyToDer(IntPtr key, byte[] output, uint inLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Ed25519PublicKeyToDer(IntPtr key, byte[] output, uint inLen, int withAlg);
+
+        /* RAW format */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_make_public(IntPtr key, IntPtr pubKey, uint pubKeySz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_import_public(IntPtr inMsg, uint inLen, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_export_public(IntPtr key, IntPtr outMsg, ref uint outLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_export_private(IntPtr key, IntPtr outMsg, ref uint outLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_ed25519_size(IntPtr key);
+
+
+        /********************************
+         * Curve25519
+         */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr wc_curve25519_new(IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_init(IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static void wc_curve25519_free(IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_make_key(IntPtr rng, int keysize, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
+        
+        /* ASN.1 DER format */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Curve25519PrivateKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Curve25519PublicKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Curve25519PrivateKeyToDer(IntPtr key, byte[] output, uint inLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_Curve25519PublicKeyToDer(IntPtr key, byte[] output, uint inLen, int withAlg);
+
+        /* RAW format */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_import_private(IntPtr privKey, int privKeySz, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_curve25519_export_public(IntPtr key, byte[] outBuffer, ref uint outLen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_import_public(IntPtr pubKey, int pubKeySz, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_export_public(IntPtr key, IntPtr outPubKey, ref int outlen);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int wc_curve25519_export_key_raw(IntPtr key, byte[] priv, ref uint privSz, byte[] pub, ref uint pubSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_import_private_raw(IntPtr privKey, IntPtr pubKey, IntPtr key);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_curve25519_export_private_raw(IntPtr key, IntPtr outPrivKey, IntPtr outPubKey);
+
+
+        /********************************
+         * HASH
+         */
+
+        /* Specifically need SHA2-256, SHA2-384 and SHA3: */
+        /* wc_HashInit, wc_HashUpdate, wc_HashFinal, wc_HashFree */
+
+
+        /********************************
+         * AES-GCM
+         */
+
+        /* wc_AesGcmSetKey, wc_AesGcmEncrypt and wc_AesGcmDecrypt */
+
+
+        /********************************
+         * ChaCha20
+         */
+
+        /* wc_Chacha_SetIV, wc_Chacha_Process, wc_Chacha_SetKey */
+        /* wc_Poly1305SetKey, wc_Poly1305Update, wc_Poly1305Final */
+        /* wc_ChaCha20Poly1305_Encrypt, wc_ChaCha20Poly1305_Decrypt, wc_ChaCha20Poly1305_Init,
+            wc_ChaCha20Poly1305_UpdateAad, wc_ChaCha20Poly1305_UpdateData, wc_ChaCha20Poly1305_Final */
 
         /********************************
          * Logging
@@ -95,19 +250,26 @@ namespace wolfSSL.CSharp {
         /********************************
          * Enum types from wolfSSL library
          */
-        
+
         /* Logging levels */
         public static readonly int ERROR_LOG = 0;
         public static readonly int INFO_LOG = 1;
         public static readonly int ENTER_LOG = 2;
         public static readonly int LEAVE_LOG = 3;
         public static readonly int OTHER_LOG = 4;
+        public static readonly int INVALID_DEVID = -2;
+        public static readonly int ECC_MAX_SIG_SIZE = 141;    /* ECC max sig size */
+        public static readonly int ED25519_SIG_SIZE = 64;     /* ED25519 pub + priv  */
+        public static readonly int ED25519_KEY_SIZE = 32;     /* Private key only */
+        public static readonly int ED25519_PUB_KEY_SIZE = 32; /* Compressed public */
 
         /* Error codes */
-        public static readonly int SUCCESS = 0;
-        public static readonly int MEMORY_E = -125; /* out of memory error */
-        public static readonly int EXCEPTION_E = -1;
 
+        public static readonly int SUCCESS = 0;
+        public static readonly int SIG_VERIFY_E = -229;    /* wolfcrypt signature verify error */
+        public static readonly int MEMORY_E = -125;        /* Out of memory error */
+        public static readonly int EXCEPTION_E = -1;
+        public static readonly int BUFFER_E = -131;        /* RSA buffer error, output too small/large */
 
         /***********************************************************************
          * Class Public Functions
@@ -119,10 +281,12 @@ namespace wolfSSL.CSharp {
         public static int Init()
         {
             int ret;
-            try {
+            try
+            {
                 ret = wolfCrypt_Init();
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "wolfCrypt init error " + e.ToString());
                 ret = EXCEPTION_E;
             }
@@ -136,10 +300,12 @@ namespace wolfSSL.CSharp {
         public static int Cleanup()
         {
             int ret;
-            try {
+            try
+            {
                 ret = wolfCrypt_Cleanup();
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "wolfCrypt cleanup error " + e.ToString());
                 ret = EXCEPTION_E;
             }
@@ -158,13 +324,15 @@ namespace wolfSSL.CSharp {
         public static IntPtr RandomNew()
         {
             IntPtr rng;
-            try {
+            try
+            {
                 /* Allocate and init new WC_RNG structure */
                 rng = wc_rng_new(
                     IntPtr.Zero, 0, /* Nonce (optional / used by FIPS only) */
                     IntPtr.Zero);   /* Heap hint for static memory only */
-            } 
-            catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "random new exception " + e.ToString());
                 rng = IntPtr.Zero;
             }
@@ -177,7 +345,8 @@ namespace wolfSSL.CSharp {
         /// <param name="rng">Pointer to allocated WC_RNG</param>
         public static void RandomFree(IntPtr rng)
         {
-            if (rng != IntPtr.Zero) {
+            if (rng != IntPtr.Zero)
+            {
                 /* Free WC_RNG structure */
                 wc_rng_free(rng);
             }
@@ -194,27 +363,33 @@ namespace wolfSSL.CSharp {
         {
             int ret;
             IntPtr data;
-            
-            try {
+
+            try
+            {
                 /* Allocate global buffer for wolfAPI random */
                 data = Marshal.AllocHGlobal(sz);
-                if (data != IntPtr.Zero) {
+                if (data != IntPtr.Zero)
+                {
                     /* Generate random block */
                     ret = wc_RNG_GenerateBlock(rng, data, Convert.ToUInt32(sz));
-                    if (ret == 0) {
+                    if (ret == 0)
+                    {
                         /* copy returned data */
                         Marshal.Copy(data, buf, 0, sz);
                     }
-                    else {
+                    else
+                    {
                         log(ERROR_LOG, "random generate block error " + ret + ": " + GetError(ret));
                     }
                     Marshal.FreeHGlobal(data);
                 }
-                else {
+                else
+                {
                     ret = MEMORY_E;
                 }
-            } 
-            catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "random generate block exception " + e.ToString());
                 ret = EXCEPTION_E;
             }
@@ -232,13 +407,15 @@ namespace wolfSSL.CSharp {
         {
             int ret;
             IntPtr rng = RandomNew();
-            if (rng == IntPtr.Zero) {
+            if (rng == IntPtr.Zero)
+            {
                 return MEMORY_E;
             }
             ret = Random(rng, buf, sz);
             RandomFree(rng);
             return ret;
         }
+        /* END Random */
 
 
         /***********************************************************************
@@ -255,13 +432,16 @@ namespace wolfSSL.CSharp {
             int ret;
             IntPtr key = IntPtr.Zero;
             IntPtr rng = IntPtr.Zero;
-            try {
+            try
+            {
                 /* Allocate and init new WC_RNG structure */
                 key = wc_ecc_key_new(IntPtr.Zero);
-                if (key != IntPtr.Zero) {
+                if (key != IntPtr.Zero)
+                {
                     rng = RandomNew();
                     ret = wc_ecc_make_key_ex(rng, keysize, key, 0); /* 0=use default curve */
-                    if (ret != 0) {
+                    if (ret != 0)
+                    {
                         EccFreeKey(key);
                         key = IntPtr.Zero;
                     }
@@ -269,7 +449,8 @@ namespace wolfSSL.CSharp {
                     rng = IntPtr.Zero;
                 }
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "ECC make key exception " + e.ToString());
                 RandomFree(rng);
                 EccFreeKey(key);
@@ -277,7 +458,7 @@ namespace wolfSSL.CSharp {
             }
             return key;
         }
-        
+
         /// <summary>
         /// Generate a new ECC private / public key pair
         /// </summary>
@@ -287,15 +468,18 @@ namespace wolfSSL.CSharp {
         {
             int ret;
             IntPtr key = IntPtr.Zero;
-            try {
+            try
+            {
                 key = wc_ecc_key_new(IntPtr.Zero);
-                if (key != IntPtr.Zero) {
+                if (key != IntPtr.Zero)
+                {
                     IntPtr idx = Marshal.AllocHGlobal(sizeof(uint));
                     IntPtr keydata = Marshal.AllocHGlobal(keyASN1.Length);
                     RtlFillMemory(idx, sizeof(uint), 0); /* zero init */
                     Marshal.Copy(keyASN1, 0, keydata, keyASN1.Length);
                     ret = wc_EccPrivateKeyDecode(keydata, idx, key, Convert.ToUInt32(keyASN1.Length));
-                    if (ret != 0) {
+                    if (ret != 0)
+                    {
                         EccFreeKey(key);
                         key = IntPtr.Zero;
                     }
@@ -303,7 +487,8 @@ namespace wolfSSL.CSharp {
                     Marshal.FreeHGlobal(keydata);
                 }
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "ECC make key exception " + e.ToString());
                 EccFreeKey(key); /* make sure its free'd */
                 key = IntPtr.Zero;
@@ -311,16 +496,180 @@ namespace wolfSSL.CSharp {
             return key;
         }
 
+        /// <summary>
+        /// Sign a hash using ECC
+        /// </summary>
+        /// <param name="key">ECC key structure</param>
+        /// <param name="hash">Hash to sign</param>
+        /// <param name="signature">Buffer to receive the signature</param>
+        /// <returns>Length of the signature on success, otherwise a negative error code</returns>
         public static int EccSign(IntPtr key, byte[] hash, byte[] signature)
         {
-            //private extern static int wc_ecc_sign_hash(IntPtr inPtr, UInt32 inlen, IntPtr outPtr, IntPtr outlen, IntPtr rng, IntPtr key);
-            return SUCCESS;
+            int ret;
+            int signedLength = 0;
+            IntPtr hashPtr = IntPtr.Zero;
+            IntPtr sigPtr = IntPtr.Zero;
+            IntPtr sigLen = IntPtr.Zero;
+            IntPtr rng = IntPtr.Zero;
+
+            try
+            {
+                rng = RandomNew();
+                hashPtr = Marshal.AllocHGlobal(hash.Length);
+                sigPtr = Marshal.AllocHGlobal(signature.Length);
+                sigLen = Marshal.AllocHGlobal(sizeof(uint));
+
+                Marshal.Copy(hash, 0, hashPtr, hash.Length);
+                ret = wc_ecc_sign_hash(hashPtr, Convert.ToUInt32(hash.Length), sigPtr, sigLen, rng, key);
+
+                /* Output actual signature length */
+                if (ret == 0)
+                {
+                    signedLength = Marshal.ReadInt32(sigLen);
+                    if (signedLength <= signature.Length)
+                    {
+                        Marshal.Copy(sigPtr, signature, 0, signedLength);
+                    }
+                    else
+                    {
+                        ret = BUFFER_E;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC sign exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                if (hashPtr != IntPtr.Zero) Marshal.FreeHGlobal(hashPtr);
+                if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
+                if (sigLen != IntPtr.Zero) Marshal.FreeHGlobal(sigLen);
+                if (rng != IntPtr.Zero) RandomFree(rng);
+            }
+
+            return ret == 0 ? signedLength : ret;
         }
 
+
+        /// <summary>
+        /// Verify a signature using ECC
+        /// </summary>
+        /// <param name="key">ECC key structure</param>
+        /// <param name="signature">Signature to verify</param>
+        /// <param name="hash">Expected hash value</param>
+        /// <returns>0 on success, otherwise an error code</returns>
         public static int EccVerify(IntPtr key, byte[] signature, byte[] hash)
         {
-            //private extern static int wc_ecc_verify_hash(IntPtr sigPtr, UInt32 siglen, IntPtr hashPtr, UInt32 hashlen, IntPtr res, IntPtr key);
-            return SUCCESS;
+            int ret;
+            IntPtr hashPtr = IntPtr.Zero;
+            IntPtr sigPtr = IntPtr.Zero;
+            IntPtr res = IntPtr.Zero;
+
+            try
+            {
+                hashPtr = Marshal.AllocHGlobal(hash.Length);
+                sigPtr = Marshal.AllocHGlobal(signature.Length);
+                res = Marshal.AllocHGlobal(sizeof(int));
+
+                Marshal.Copy(hash, 0, hashPtr, hash.Length);
+                Marshal.Copy(signature, 0, sigPtr, signature.Length);
+
+                ret = wc_ecc_verify_hash(sigPtr, Convert.ToUInt32(signature.Length), hashPtr, Convert.ToUInt32(hash.Length), res, key);
+
+                if (ret == 0)
+                {
+                    int verifyResult = Marshal.ReadInt32(res);
+                    ret = verifyResult == 1 ? 0 : EXCEPTION_E;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC verify exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                if (hashPtr != IntPtr.Zero) Marshal.FreeHGlobal(hashPtr);
+                if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
+                if (res != IntPtr.Zero) Marshal.FreeHGlobal(res);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Export ECC Private Key to DER format
+        /// </summary>
+        /// <param name="key">ECC key structure</param>
+        /// <returns>DER-encoded private key as byte array</returns>
+        public static byte[] ExportPrivateKeyToDer(IntPtr key)
+        {
+            int bufferSize = 1024; /* Adjust buffer size as needed */
+            byte[] derKey = new byte[bufferSize];
+            int ret = wc_EccPrivateKeyToDer(key, derKey, (uint)bufferSize);
+
+            if (ret < 0)
+            {
+                throw new Exception("Failed to export ECC private key to DER format. Error code: " + ret);
+            }
+
+            Array.Resize(ref derKey, ret); /* Resize to actual length */
+            return derKey;
+        }
+
+        /// <summary>
+        /// Export ECC Public Key to DER format
+        /// </summary>
+        /// <param name="key">ECC key structure</param>
+        /// <param name="includeCurve">Include algorithm curve in the output</param>
+        /// <returns>DER-encoded public key as byte array</returns>
+        public static byte[] ExportPublicKeyToDer(IntPtr key, bool includeCurve)
+        {
+            int bufferSize = 1024; /* Adjust buffer size as needed */
+            byte[] derKey = new byte[bufferSize];
+            int ret = wc_EccPublicKeyToDer(key, derKey, (uint)bufferSize, includeCurve ? 1 : 0);
+
+            if (ret < 0)
+            {
+                throw new Exception("Failed to export ECC public key to DER format. Error code: " + ret);
+            }
+
+            Array.Resize(ref derKey, ret); /* Resize to actual length */
+            return derKey;
+        }
+
+        /// <summary>
+        /// Import ECC Public Key from DER format
+        /// </summary>
+        /// <param name="keyDer">DER-encoded public key</param>
+        /// <returns>Allocated ECC key structure or null</returns>
+        public static IntPtr ImportPublicKeyFromDer(byte[] keyDer)
+        {
+            int ret;
+            IntPtr key = IntPtr.Zero;
+            try
+            {
+                key = wc_ecc_key_new(IntPtr.Zero);
+                if (key != IntPtr.Zero)
+                {
+                    uint idx = 0;
+                    ret = wc_EccPublicKeyDecode(keyDer, ref idx, key, (uint)keyDer.Length);
+                    if (ret != 0)
+                    {
+                        EccFreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC import public key exception " + e.ToString());
+                EccFreeKey(key);
+                key = IntPtr.Zero;
+            }
+            return key;
         }
 
         /// <summary>
@@ -329,16 +678,1129 @@ namespace wolfSSL.CSharp {
         /// <param name="key">ECC key structure allocated using EccMakeKey() or EccImportKey()</param>
         public static void EccFreeKey(IntPtr key)
         {
-            if (key != IntPtr.Zero) {
+            if (key != IntPtr.Zero)
+            {
                 wc_ecc_key_free(key);
+            }
+        }
+        /* END ECC */
+
+
+        /***********************************************************************
+         * RSA
+         **********************************************************************/
+
+        /// <summary>
+        /// Generate a new RSA private/public key pair
+        /// </summary>
+        /// <param name="heap">Pointer to the heap for memory allocation (use IntPtr.Zero if not applicable)</param>
+        /// <param name="devId">Device ID (if applicable, otherwise use 0)</param>
+        /// <param name="keysize">Key size in bits (example: 2048)</param>
+        /// <param name="exponent">Exponent for RSA key generation (default is 65537)</param>
+        /// <returns>Allocated RSA key structure or null on failure</returns>
+        public static IntPtr RsaMakeKey(IntPtr heap, int devId, int keysize, Int32 exponent)
+        {
+            int ret;
+            IntPtr key = IntPtr.Zero;
+            IntPtr rng = IntPtr.Zero;
+            try
+            {
+                /* Allocate and init new RSA key structure */
+                key = wc_NewRsaKey(heap, devId);
+                if (key != IntPtr.Zero)
+                {
+                    rng = RandomNew();
+                    if (rng == IntPtr.Zero)
+                    {
+                        throw new Exception("Failed to create rng.");
+                    }
+
+                    ret = wc_MakeRsaKey(key, keysize, exponent, rng);
+                    if (ret != 0)
+                    {
+                        RsaFreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+
+                    RandomFree(rng);
+                    rng = IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "RSA make key exception " + e.ToString());
+                if (rng != IntPtr.Zero) RandomFree(rng);
+                if (key != IntPtr.Zero) RsaFreeKey(key);
+                key = IntPtr.Zero;
+            }
+            return key;
+        }
+
+        public static IntPtr RsaMakeKey(IntPtr heap, int devId, int keysize)
+        {
+            return RsaMakeKey(heap, devId, keysize, 65537);
+        }
+
+
+        /// <summary>
+        /// Import an RSA private key from ASN.1 buffer
+        /// </summary>
+        /// <param name="keyASN1">ASN.1 private key buffer</param>
+        /// <returns>Allocated RSA key structure or null</returns>
+        public static IntPtr RsaImportKey(byte[] keyASN1)
+        {
+            int ret;
+            IntPtr key = IntPtr.Zero;
+            try
+            {
+                key = wc_NewRsaKey(IntPtr.Zero, INVALID_DEVID);
+                if (key != IntPtr.Zero)
+                {
+                    IntPtr idx = Marshal.AllocHGlobal(sizeof(uint));
+                    IntPtr keydata = Marshal.AllocHGlobal(keyASN1.Length);
+                    RtlFillMemory(idx, sizeof(uint), 0); /* zero init */
+                    Marshal.Copy(keyASN1, 0, keydata, keyASN1.Length);
+                    ret = wc_RsaPrivateKeyDecode(keydata, idx, key, Convert.ToUInt32(keyASN1.Length));
+                    if (ret != 0)
+                    {
+                        RsaFreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                    Marshal.FreeHGlobal(idx); /* not used */
+                    Marshal.FreeHGlobal(keydata);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "RSA make key exception " + e.ToString());
+                RsaFreeKey(key); /* make sure its free'd */
+                key = IntPtr.Zero;
+            }
+            return key;
+        }
+
+        /// <summary>
+        /// Sign a hash using RSA and SSL-style padding
+        /// </summary>
+        /// <param name="key">RSA key structure</param>
+        /// <param name="hash">Hash to sign</param>
+        /// <param name="signature">Buffer to receive the signature</param>
+        /// <returns>Length of the signature on success, otherwise an error code</returns>
+        public static int RsaSignSSL(IntPtr key, byte[] hash, byte[] signature)
+        {
+            IntPtr hashPtr = Marshal.AllocHGlobal(hash.Length);
+            IntPtr sigPtr = Marshal.AllocHGlobal(signature.Length);
+            IntPtr rng = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                rng = RandomNew();
+                if (rng == IntPtr.Zero)
+                {
+                    throw new Exception("Failed to create RNG.");
+                }
+
+                Marshal.Copy(hash, 0, hashPtr, hash.Length);
+
+                ret = wc_RsaSSL_Sign(hashPtr, hash.Length, sigPtr, signature.Length, key, rng);
+                if (ret >= 0) /* `wc_RsaSSL_Sign` returns the signature length on success */
+                {
+                    Marshal.Copy(sigPtr, signature, 0, ret);
+                }
+            }
+            finally
+            {
+                if (hashPtr != IntPtr.Zero) Marshal.FreeHGlobal(hashPtr);
+                if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
+                if (rng != IntPtr.Zero) RandomFree(rng);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Verify a signature using RSA and SSL-style padding
+        /// </summary>
+        /// <param name="key">RSA key structure</param>
+        /// <param name="signature">Signature to verify</param>
+        /// <param name="hash">Expected hash value</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int RsaVerifySSL(IntPtr key, byte[] signature, byte[] hash)
+        {
+            IntPtr hashPtr = IntPtr.Zero;
+            IntPtr sigPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                hashPtr = Marshal.AllocHGlobal(hash.Length);
+                sigPtr = Marshal.AllocHGlobal(signature.Length);
+
+                Marshal.Copy(signature, 0, sigPtr, signature.Length);
+
+                ret = wc_RsaSSL_Verify(sigPtr, signature.Length, hashPtr, hash.Length, key);
+
+                if (ret == hash.Length)
+                {
+                    byte[] verifiedHash = new byte[hash.Length];
+                    Marshal.Copy(hashPtr, verifiedHash, 0, hash.Length);
+
+                    if (ByteArrayVerify(verifiedHash, hash))
+                    {
+                        ret = 0;
+                    }
+                    else
+                    {
+                        ret = SIG_VERIFY_E;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "RSA verify exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                if (hashPtr != IntPtr.Zero) Marshal.FreeHGlobal(hashPtr);
+                if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Encrypt data using RSA public key encryption
+        /// </summary>
+        /// <param name="key">RSA key structure</param>
+        /// <param name="input">Data to encrypt</param>
+        /// <param name="output">Buffer to receive the encrypted data</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int RsaPublicEncrypt(IntPtr key, byte[] input, byte[] output)
+        {
+            IntPtr inPtr = Marshal.AllocHGlobal(input.Length);
+            IntPtr outPtr = Marshal.AllocHGlobal(output.Length);
+            Marshal.Copy(input, 0, inPtr, input.Length);
+
+            int ret = wc_RsaPublicEncrypt(inPtr, input.Length, outPtr, output.Length, key);
+
+            if (ret > 0)
+            {
+                Marshal.Copy(outPtr, output, 0, ret);
+            }
+
+            Marshal.FreeHGlobal(inPtr);
+            Marshal.FreeHGlobal(outPtr);
+
+            return ret > 0 ? 0 : ret;
+        }
+
+        /// <summary>
+        /// Decrypt data using RSA private key decryption
+        /// </summary>
+        /// <param name="key">RSA key structure</param>
+        /// <param name="input">Encrypted data</param>
+        /// <param name="output">Buffer to receive the decrypted data</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int RsaPrivateDecrypt(IntPtr key, byte[] input, byte[] output)
+        {
+            IntPtr inPtr = Marshal.AllocHGlobal(input.Length);
+            IntPtr outPtr = Marshal.AllocHGlobal(output.Length);
+            Marshal.Copy(input, 0, inPtr, input.Length);
+
+            int ret = wc_RsaPrivateDecrypt(inPtr, input.Length, outPtr, output.Length, key);
+
+            if (ret > 0)
+            {
+                Marshal.Copy(outPtr, output, 0, ret);
+            }
+
+            Marshal.FreeHGlobal(inPtr);
+            Marshal.FreeHGlobal(outPtr);
+
+            return ret > 0 ? 0 : ret;
+        }
+
+        /// <summary>
+        /// Free an RSA key structure
+        /// </summary>
+        /// <param name="key">RSA key structure allocated using RsaMakeKey() or RsaImportKey()</param>
+        public static void RsaFreeKey(IntPtr key)
+        {
+            if (key != IntPtr.Zero)
+            {
+                wc_FreeRsaKey(key);
+            }
+        }
+        /* END RSA */
+
+
+        /***********************************************************************
+         * ED25519
+         **********************************************************************/
+
+        /// <summary>
+        /// Generate a new ED25519 key pair with a specified heap, device ID, and internally managed RNG.
+        /// </summary>
+        /// <param name="heap">Heap to use for memory allocations (can be IntPtr.Zero).</param>
+        /// <param name="devId">Device ID for hardware-based keys (can be 0 for software).</param>
+        /// <returns>0 on success, or an error code on failure.</returns>
+        public static IntPtr Ed25519MakeKey(IntPtr heap, int devId)
+        {
+            int ret = 0;
+            IntPtr rng = IntPtr.Zero;
+            IntPtr key = IntPtr.Zero;
+
+            try
+            {
+                rng = RandomNew();
+                if (rng == IntPtr.Zero)
+                {
+                    throw new Exception("Failed to create RNG.");
+                }
+
+                key = wc_ed25519_new(heap, devId);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_ed25519_make_key(rng, 32, key);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 make key exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (rng != IntPtr.Zero) RandomFree(rng);
+                if (ret != 0)
+                {
+                    wc_ed25519_free(key);
+                    key = IntPtr.Zero;
+                }
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Sign a message with an ED25519 private key.
+        /// </summary>
+        /// <param name="inMsg">Message to be signed</param>
+        /// <param name="outMsg">Buffer to receive the signature</param>
+        /// <param name="key">Private key used for signing</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int Ed25519SignMsg(byte[] inMsg, out byte[] outMsg, IntPtr key)
+        {
+            IntPtr inMsgPtr = Marshal.AllocHGlobal(inMsg.Length);
+            IntPtr outMsgPtr = Marshal.AllocHGlobal(ED25519_SIG_SIZE);
+            outMsg = null;
+
+            try
+            {
+                Marshal.Copy(inMsg, 0, inMsgPtr, inMsg.Length);
+                uint outMsgSize = (uint)ED25519_SIG_SIZE;
+                int result = wc_ed25519_sign_msg(inMsgPtr, (uint)inMsg.Length, outMsgPtr, ref outMsgSize, key);
+                if (result == 0)
+                {
+                    outMsg = new byte[outMsgSize];
+                    Marshal.Copy(outMsgPtr, outMsg, 0, (int)outMsgSize);
+                }
+                return result;
+            }
+            finally
+            {
+                /* Clenup */
+                if (inMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(inMsgPtr);
+                if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
+            }
+        }
+
+        /// <summary>
+        /// Verify a signature of a message with an ED25519 public key.
+        /// </summary>
+        /// <param name="sig">Signature to verify</param>
+        /// <param name="msg">Message that was signed</param>
+        /// <param name="key">Public key used for verification</param>
+        /// <returns>0 if the verification succeeds, otherwise an error code</returns>
+        public static int Ed25519VerifyMsg(byte[] sig, byte[] msg, IntPtr key)
+        {
+            IntPtr sigPtr = IntPtr.Zero;
+            IntPtr msgPtr = IntPtr.Zero;
+            int ret = 0;
+
+            try
+            {
+                /* Allocate memory */
+                sigPtr = Marshal.AllocHGlobal(sig.Length);
+                msgPtr = Marshal.AllocHGlobal(msg.Length);
+
+                Marshal.Copy(sig, 0, sigPtr, sig.Length);
+                Marshal.Copy(msg, 0, msgPtr, msg.Length);
+
+                int verify = 0;
+                ret = wc_ed25519_verify_msg(sigPtr, (uint)sig.Length, msgPtr, (uint)msg.Length, ref verify, key);
+
+                if (ret == 0 && verify == 1)
+                {
+                    ret = 0;
+                }
+                else
+                {
+                    ret = SIG_VERIFY_E;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 verify exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
+                if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// Decode an ED25519 private key from DER format.
+        /// </summary>
+        /// <param name="input">DER-encoded private key as byte array.</param>
+        /// <returns>Allocated ED25519 key structure or IntPtr.Zero on failure.</returns>
+        public static IntPtr Ed25519PrivateKeyDecode(byte[] input)
+        {
+            IntPtr key = IntPtr.Zero;
+            uint idx = 0;
+            int ret;
+
+            try
+            {
+                key = wc_ed25519_new(IntPtr.Zero, INVALID_DEVID);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_Ed25519PrivateKeyDecode(input, ref idx, key, (uint)input.Length);
+                    if (ret != 0)
+                    {
+                        Ed25519FreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 private key decode exception: " + e.ToString());
+                if (key != IntPtr.Zero) Ed25519FreeKey(key);
+                key = IntPtr.Zero;
+            }
+
+            return key;
+        } 
+
+        /// <summary>
+        /// Decode an ED25519 public key from DER format.
+        /// </summary>
+        /// <param name="input">DER-encoded public key as byte array.</param>
+        /// <returns>Allocated ED25519 key structure or IntPtr.Zero on failure.</returns>
+        public static IntPtr Ed25519PublicKeyDecode(byte[] input)
+        {
+            IntPtr key = IntPtr.Zero;
+            uint idx = 0;
+            int ret;
+
+            try
+            {
+                key = wc_ed25519_new(IntPtr.Zero, INVALID_DEVID);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_Ed25519PublicKeyDecode(input, ref idx, key, (uint)input.Length);
+                    if (ret != 0)
+                    {
+                        Ed25519FreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 public key decode exception: " + e.ToString());
+                if (key != IntPtr.Zero) Ed25519FreeKey(key);
+                key = IntPtr.Zero;
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Export an ED25519 key to DER format.
+        /// </summary>
+        /// <param name="key">ED25519 key structure.</param>
+        /// <param name="privKey">DER-encoded public key as byte array.</param>
+        /// <returns>DER-encoded key as byte array.</returns>
+        public static int Ed25519ExportKeyToDer(IntPtr key, out byte[] privKey)
+        {
+            int ret;
+            privKey = null;
+
+            try
+            {
+                /* Get length */
+                int len = wc_Ed25519KeyToDer(key, null, 0);
+                if (len < 0)
+                {
+                    log(ERROR_LOG, "Failed to determine length. Error code: " + len);
+                    return len;
+                }
+
+                privKey = new byte[len];
+                ret = wc_Ed25519KeyToDer(key, privKey, (uint)privKey.Length);
+
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to export ED25519 private key to DER format. Error code: " + ret);
+                    return ret; 
+                }
+            }
+            catch(Exception e)
+            {
+                log(ERROR_LOG, "ED25519 export private key to DER exception: " + e.ToString());
+                return EXCEPTION_E;
+            }
+            
+            return ret;
+        }
+
+        /// <summary>
+        /// Export an ED25519 private key to DER format.
+        /// </summary>
+        /// <param name="key">ED25519 private key structure.</param>
+        /// <param name="derKey">DER-encoded private key as byte array.</param>
+        /// <returns>DER-encoded private key as byte array.</returns>
+        public static int Ed25519ExportPrivateKeyToDer(IntPtr key, out byte[] derKey)
+        {
+            int ret;
+            derKey = null;
+
+            try
+            {
+                /* Determine length */
+                int len = wc_Ed25519PrivateKeyToDer(key, null, 0);
+                if (len < 0)
+                {
+                    log(ERROR_LOG, "Failed to determine length. Error code: " + len);
+                    return len;
+                }
+
+                derKey = new byte[len];
+                ret = wc_Ed25519PrivateKeyToDer(key, derKey, (uint)derKey.Length);
+
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to export ED25519 private key to DER format. Error code: " + ret);
+                    return ret; 
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 export private key to DER exception: " + e.ToString());
+                return EXCEPTION_E;
+            }
+           
+            return ret;
+        }
+
+        /// <summary>
+        /// Export an ED25519 public key to DER format.
+        /// </summary>
+        /// <param name="key">ED25519 public key structure.</param>
+        /// <param name="includeAlg">Whether to include the algorithm identifier in the output.</param>
+        /// <param name="pubKey">DER-encoded public key as byte array.</param>
+        /// <returns>An error code indicating success (0) or failure (negative value).</returns>
+        public static int Ed25519ExportPublicKeyToDer(IntPtr key, out byte[] pubKey, bool includeAlg)
+        {
+            int ret;
+            pubKey = null;
+
+            try
+            {
+                /* Determine length */
+                int len = wc_Ed25519PublicKeyToDer(key, null, 0, 1);
+                if (len < 0)
+                {
+                    log(ERROR_LOG, "Failed to determine length. Error code: " + len);
+                    return len; 
+                }
+
+                pubKey = new byte[len];
+                ret = wc_Ed25519PublicKeyToDer(key, pubKey, (uint)pubKey.Length, includeAlg ? 1 : 0);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to export ED25519 public key to DER format. Error code: " + ret);
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ED25519 export public key to DER exception: " + e.ToString());
+                return EXCEPTION_E;
+            }
+
+            return ret; 
+        }
+
+        /// <summary>
+        /// Free an ED25519 key.
+        /// </summary>
+        /// <param name="key">Key to be freed</param>
+        public static void Ed25519FreeKey(IntPtr key)
+        {
+            wc_ed25519_free(key);
+        }
+        /* END ED25519 */
+
+
+        /***********************************************************************
+         * RAW ED25519
+         **********************************************************************/
+
+        /// <summary>
+    	/// Initialize an ED25519 key.
+    	/// </summary>
+    	/// <param name="key">Buffer to receive the initialized key</param>
+    	/// <returns>0 on success, otherwise an error code</returns>
+    	public static int EdInitKey(out IntPtr key)
+        {
+            key = IntPtr.Zero;
+            try
+            {
+                key = Marshal.AllocHGlobal(64);
+                int result = wc_ed25519_init(key);
+
+                if (result != 0)
+                {
+                    Marshal.FreeHGlobal(key);
+                    key = IntPtr.Zero;
+                }
+
+                return result;
+            }
+            catch
+            {
+                /* Cleanup */
+                Marshal.FreeHGlobal(key);
+                key = IntPtr.Zero;
+                throw;
             }
         }
 
 
+        /// <summary>
+        /// Import a public key into an ED25519 key structure.
+        /// </summary>
+        /// <param name="inMsg">Public key to import</param>
+        /// <param name="inLen">Length of the public key</param>
+        /// <param name="key">Buffer to receive the imported key</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int EdImportPublic(byte[] inMsg, uint inLen, out IntPtr key)
+        {
+            key = IntPtr.Zero;
+            IntPtr inMsgPtr = IntPtr.Zero;
+
+            try
+            {
+                /* Allocate memory */
+                key = Marshal.AllocHGlobal(ED25519_PUB_KEY_SIZE);
+                if (key == IntPtr.Zero)
+                {
+                    throw new OutOfMemoryException("Failed to allocate memory for the key.");
+                }
+
+                inMsgPtr = Marshal.AllocHGlobal(inMsg.Length);
+                if (inMsgPtr == IntPtr.Zero)
+                {
+                    throw new OutOfMemoryException("Failed to allocate memory for the input message.");
+                }
+                Marshal.Copy(inMsg, 0, inMsgPtr, inMsg.Length);
+
+                int result = wc_ed25519_import_public(inMsgPtr, inLen, key);
+                if (result != 0)
+                {
+                    return result;
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in EdImportPublic: {ex.Message}");
+
+                return EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (inMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(inMsgPtr);
+                if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
+            }
+        }
+
+        /// <summary>
+        /// Export a public key from an ED25519 key structure.
+        /// </summary>
+        /// <param name="key">ED25519 key structure</param>
+        /// <param name="outMsg">Buffer to receive the exported public key</param>
+        /// <param name="outLen">Length of the exported public key</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int EdExportPublic(IntPtr key, byte[] outMsg, out uint outLen)
+        {
+            IntPtr outMsgPtr = IntPtr.Zero;
+            try
+            {
+                outMsgPtr = Marshal.AllocHGlobal(outMsg.Length);
+                outLen = (uint)outMsg.Length;
+                int result = wc_ed25519_export_public(key, outMsgPtr, ref outLen);
+                if (result == 0)
+                {
+                    Marshal.Copy(outMsgPtr, outMsg, 0, (int)outLen);
+                }
+                else
+                {
+                    outLen = 0;
+                }
+                return result;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
+            }
+        }
+
+        /// <summary>
+        /// Export a private key from an ED25519 key structure.
+        /// </summary>
+        /// <param name="key">ED25519 key structure</param>
+        /// <param name="outMsg">Buffer to receive the exported private key</param>
+        /// <param name="outLen">Length of the exported private key</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int EdExportPrivate(IntPtr key, byte[] outMsg, out uint outLen)
+        {
+            IntPtr outMsgPtr = IntPtr.Zero;
+            try
+            {
+                outMsgPtr = Marshal.AllocHGlobal(outMsg.Length);
+                outLen = (uint)outMsg.Length;
+                int result = wc_ed25519_export_private(key, outMsgPtr, ref outLen);
+                if (result == 0)
+                {
+                    Marshal.Copy(outMsgPtr, outMsg, 0, (int)outLen);
+                }
+                else
+                {
+                    outLen = 0;
+                }
+                return result;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
+            }
+        }
+
+        /// <summary>
+        /// Generate a public key from a private key.
+        /// </summary>
+        /// <param name="key">The private key used to generate the public key</param>
+        /// <param name="pubKey">Buffer to receive the public key</param>
+        /// <param name="pubKeySz">Size of the public key buffer</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int Ed25519MakePublic(IntPtr key, byte[] pubKey, out uint pubKeySz)
+        {
+            IntPtr pubKeyPtr = Marshal.AllocHGlobal(pubKey.Length);
+            try
+            {
+                pubKeySz = (uint)pubKey.Length;
+                int result = wc_ed25519_make_public(key, pubKeyPtr, pubKeySz);
+                if (result == 0)
+                {
+                    Marshal.Copy(pubKeyPtr, pubKey, 0, (int)pubKeySz);
+                }
+                return result;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (pubKeyPtr != IntPtr.Zero) Marshal.FreeHGlobal(pubKeyPtr);
+            }
+        }
+
+        /// <summary>
+        /// Get the size of the ED25519 key.
+        /// </summary>
+        /// <param name="key">ED25519 key structure</param>
+        /// <returns>Size of the key, or an error code if failed</returns>
+        public static int EdGetKeySize(IntPtr key)
+        {
+            return wc_ed25519_size(key);
+        }
+        /* END RAW ED25519 */
+
 
         /***********************************************************************
-         * Logging / Other
+         * Curve25519
          **********************************************************************/
+
+        /// <summary>
+        /// Generate a new Curve25519 key pair with a specified heap, device ID, and internally managed RNG.
+        /// </summary>
+        /// <param name="heap">Heap to use for memory allocations (can be IntPtr.Zero).</param>
+        /// <param name="devId">Device ID for hardware-based keys (can be 0 for software).</param>
+        /// <returns>0 on success, or an error code on failure.</returns>
+        public static IntPtr Curve25519MakeKey(IntPtr heap, int devId)
+        {
+            int ret = 0;
+            IntPtr rng = IntPtr.Zero;
+            IntPtr key = IntPtr.Zero;
+
+            try
+            {
+                rng = RandomNew();
+                if (rng == IntPtr.Zero)
+                {
+                    throw new Exception("Failed to create RNG.");
+                }
+
+                key = wc_curve25519_new(heap, devId);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_curve25519_make_key(rng, 32, key);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 make key exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (rng != IntPtr.Zero) RandomFree(rng);
+                if (ret != 0)
+                {
+                    wc_curve25519_free(key);
+                    key = IntPtr.Zero;
+                }
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Decode an Curve25519 private key from DER format.
+        /// </summary>
+        /// <param name="input">DER-encoded private key as byte array.</param>
+        /// <returns>Allocated Curve25519 key structure or IntPtr.Zero on failure.</returns>
+        public static IntPtr Curve25519PrivateKeyDecode(byte[] input)
+        {
+            IntPtr key = IntPtr.Zero;
+            uint idx = 0;
+            int ret;
+
+            try
+            {
+                key = wc_ed25519_new(IntPtr.Zero, INVALID_DEVID);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_Ed25519PrivateKeyDecode(input, ref idx, key, (uint)input.Length);
+                    if (ret != 0)
+                    {
+                        Curve25519FreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 private key decode exception: " + e.ToString());
+                if (key != IntPtr.Zero) Curve25519FreeKey(key);
+                key = IntPtr.Zero;
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Decode an Curve25519 public key from DER format.
+        /// </summary>
+        /// <param name="input">DER-encoded public key as byte array.</param>
+        /// <returns>Allocated Curve25519 key structure or IntPtr.Zero on failure.</returns>
+        public static IntPtr Curve25519PublicKeyDecode(byte[] input)
+        {
+            IntPtr key = IntPtr.Zero;
+            uint idx = 0;
+            int ret;
+
+            try
+            {
+                key = wc_curve25519_new(IntPtr.Zero, INVALID_DEVID);
+                if (key != IntPtr.Zero)
+                {
+                    ret = wc_Curve25519PublicKeyDecode(input, ref idx, key, (uint)input.Length);
+                    if (ret != 0)
+                    {
+                        Curve25519FreeKey(key);
+                        key = IntPtr.Zero;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 public key decode exception: " + e.ToString());
+                if (key != IntPtr.Zero) Curve25519FreeKey(key);
+                key = IntPtr.Zero;
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Export an Curve25519 key to DER format.
+        /// </summary>
+        /// <param name="key">Curve25519 key structure.</param>
+        /// <param name="derKey">DER-encoded public key as byte array.</param>
+        /// <returns>DER-encoded key as byte array.</returns>
+        public static int Curve25519ExportPrivateKeyToDer(IntPtr key, out byte[] derKey)
+        {
+            int ret;
+            derKey = null;
+
+            try
+            {
+                /* Determine length */
+                int len = wc_Curve25519PrivateKeyToDer(key, null, 0);
+                if (len < 0)
+                {
+                    log(ERROR_LOG, "Failed to determine length. Error code: " + len);
+                    return len;
+                }
+
+                derKey = new byte[len];
+                ret = wc_Curve25519PrivateKeyToDer(key, derKey, (uint)derKey.Length);
+
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to export Curve25519 private key to DER format. Error code: " + ret);
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "CURVE25519 export private key to DER exception: " + e.ToString());
+                return EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Export an Curve25519 public key to DER format.
+        /// </summary>
+        /// <param name="key">Curve25519 public key structure.</param>
+        /// <param name="includeAlg">Whether to include the algorithm identifier in the output.</param>
+        /// <param name="derKey">DER-encoded public key as byte array.</param>
+        /// <returns>An error code indicating success (0) or failure (negative value).</returns>
+        public static int Curve25519ExportPublicKeyToDer(IntPtr key, out byte[] derKey, bool includeAlg)
+        {
+            int ret;
+            derKey = null;
+
+            try
+            {
+                /* Determine length */
+                int len = wc_Curve25519PublicKeyToDer(key, null, 0, 1);
+                if (len < 0)
+                {
+                    log(ERROR_LOG, "Failed to determine length. Error code: " + len);
+                    return len;
+                }
+
+                derKey = new byte[len];
+                ret = wc_Curve25519PublicKeyToDer(key, derKey, (uint)derKey.Length, includeAlg ? 1 : 0);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to export Curve25519 public key to DER format. Error code: " + ret);
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 export public key to DER exception: " + e.ToString());
+                return EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Free an Curve25519 key.
+        /// </summary>
+        /// <param name="key">Key to be freed</param>
+        public static void Curve25519FreeKey(IntPtr key)
+        {
+            wc_curve25519_free(key);
+        }
+        /* END Curve25519 */
+
+
+        /***********************************************************************
+        * RAW Curve25519
+        **********************************************************************/
+
+        /// <summary>
+        /// Generate a shared secret using Curve25519
+        /// </summary>
+        /// <param name="privateKey">Curve25519 private key</param>
+        /// <param name="publicKey">Curve25519 public key</param>
+        /// <param name="secret">Buffer to receive the shared secret</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int Curve25519SharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret)
+        {
+            int ret = -1;
+            int secretLength = secret.Length;
+            try
+            {
+                ret = wc_curve25519_shared_secret(privateKey, publicKey, secret, ref secretLength);
+                if (ret != 0)
+                {
+                    throw new Exception("Failed to compute Curve25519 shared secret. Error code: " + ret);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 shared secret exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// Import a Curve25519 private key from a byte array
+        /// </summary>
+        /// <param name="privateKey">Private key byte array</param>
+        /// <returns>Allocated Curve25519 key structure or null</returns>
+        public static IntPtr Curve25519ImportPrivateKey(byte[] privateKey)
+        {
+            IntPtr key = IntPtr.Zero;
+            try
+            {
+                key = Marshal.AllocHGlobal(privateKey.Length);
+                Marshal.Copy(privateKey, 0, key, privateKey.Length);
+                int ret = wc_curve25519_import_private(key, privateKey.Length, key);
+                if (ret != 0)
+                {
+                    Marshal.FreeHGlobal(key);
+                    key = IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 import private key exception " + e.ToString());
+                if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
+                key = IntPtr.Zero;
+            }
+            return key;
+        }
+
+        /// <summary>
+        /// Import a Curve25519 public key from a byte array
+        /// </summary>
+        /// <param name="publicKey">Public key byte array</param>
+        /// <returns>Allocated Curve25519 key structure or null</returns>
+        public static IntPtr Curve25519ImportPublicKey(byte[] publicKey)
+        {
+            IntPtr key = IntPtr.Zero;
+            try
+            {
+                key = Marshal.AllocHGlobal(publicKey.Length);
+                Marshal.Copy(publicKey, 0, key, publicKey.Length);
+                int ret = wc_curve25519_import_public(key, publicKey.Length, key);
+                if (ret != 0)
+                {
+                    Marshal.FreeHGlobal(key);
+                    key = IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "Curve25519 import public key exception " + e.ToString());
+                if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
+                key = IntPtr.Zero;
+            }
+            return key;
+        }
+
+        /// <summary>
+        /// Export a Curve25519 private key to a byte array
+        /// </summary>
+        /// <param name="key">Curve25519 key structure</param>
+        /// <returns>Private key as byte array</returns>
+        public static byte[] Curve25519ExportPrivateKey(IntPtr key)
+        {
+            byte[] privateKey = new byte[ED25519_KEY_SIZE];
+            uint privSize = (uint)privateKey.Length;
+            int ret = wc_curve25519_export_public(key, privateKey, ref privSize);
+            if (ret != 0)
+            {
+                throw new Exception("Failed to export Curve25519 private key. Error code: " + ret);
+            }
+            return privateKey;
+        }
+
+        /// <summary>
+        /// Export a Curve25519 public key to a byte array
+        /// </summary>
+        /// <param name="key">Curve25519 key structure</param>
+        /// <returns>Public key as byte array</returns>
+        public static byte[] Curve25519ExportPublicKey(IntPtr key)
+        {
+            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];
+            uint pubSize = (uint)publicKey.Length;
+            int ret = wc_curve25519_export_public(key, publicKey, ref pubSize);
+            if (ret != 0)
+            {
+                throw new Exception("Failed to export Curve25519 public key. Error code: " + ret);
+            }
+            return publicKey;
+        }
+
+        /// <summary>
+        /// Export both private and public keys from a Curve25519 key structure
+        /// </summary>
+        /// <param name="key">Curve25519 key structure</param>
+        /// <returns>A tuple containing the private key and public key as byte arrays</returns>
+        public static (byte[] privateKey, byte[] publicKey) Curve25519ExportKeyRaw(IntPtr key)
+        {
+            byte[] privateKey = new byte[ED25519_KEY_SIZE];
+            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];  
+            uint privSize = (uint)privateKey.Length;
+            uint pubSize = (uint)publicKey.Length;
+            int ret = wc_curve25519_export_key_raw(key, privateKey, ref privSize, publicKey, ref pubSize);
+            if (ret != 0)
+            {
+                throw new Exception("Failed to export Curve25519 keys. Error code: " + ret);
+            }
+            return (privateKey, publicKey);
+        }
+        /* END RAW Curve25519 */
+
+
+        /***********************************************************************
+        * Logging / Other
+        **********************************************************************/
 
         /// <summary>
         /// Set the function to use for logging
@@ -358,14 +1820,37 @@ namespace wolfSSL.CSharp {
         /// <returns>Error string</returns>
         public static string GetError(int error)
         {
-            try {
+            try
+            {
                 IntPtr errStr = wc_GetErrorString(error);
                 return Marshal.PtrToStringAnsi(errStr);
             }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 log(ERROR_LOG, "Get error exception " + e.ToString());
                 return string.Empty;
             }
         }
+
+        /// <summary>
+        /// Compares two byte arrays.
+        /// </summary>
+        /// <param name="array1">The first byte array to compare.</param>
+        /// <param name="array2">The second byte array to compare.</param>
+        /// <returns>True if both arrays are equal; otherwise, false.</returns>
+        public static bool ByteArrayVerify(byte[] array1, byte[] array2)
+        {
+            if (ReferenceEquals(array1, array2)) return true;
+            if (array1 == null || array2 == null) return false;
+            if (array1.Length != array2.Length) return false;
+
+            for (int i = 0; i < array1.Length; i++)
+            {
+                if (array1[i] != array2[i]) return false;
+            }
+            return true;
+        }
     }
 }
+
+

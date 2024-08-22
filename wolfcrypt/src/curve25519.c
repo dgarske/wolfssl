@@ -655,6 +655,22 @@ int wc_curve25519_import_private_ex(const byte* priv, word32 privSz,
 
 #endif /* HAVE_CURVE25519_KEY_IMPORT */
 
+curve25519_key* wc_curve25519_new(void* heap, int devId)
+{
+    curve25519_key* key = (curve25519_key*)XMALLOC(sizeof(curve25519_key), heap,
+                           DYNAMIC_TYPE_CURVE25519);
+    if (key != NULL) {
+        if (wc_curve25519_init_ex(key, heap, devId) != 0) {
+            XFREE(key, heap, DYNAMIC_TYPE_CURVE25519);
+            key = NULL;
+        }
+        else {
+            key->isAllocated = 1;
+        }
+    }
+    return key;
+}
+
 int wc_curve25519_init_ex(curve25519_key* key, void* heap, int devId)
 {
     if (key == NULL)
@@ -706,6 +722,12 @@ void wc_curve25519_free(curve25519_key* key)
 #ifdef WOLFSSL_CHECK_MEM_ZERO
     wc_MemZero_Check(key, sizeof(curve25519_key));
 #endif
+
+    if (key->isAllocated) {
+        void* heap = key->heap;
+        XFREE(key, heap, DYNAMIC_TYPE_CURVE25519);
+        (void)heap;
+    }
 }
 
 /* get key size */
