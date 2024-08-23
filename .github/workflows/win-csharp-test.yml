@@ -49,10 +49,9 @@ jobs:
           run: msbuild /m /p:PlatformToolset=v142 /p:Platform=${{env.BUILD_PLATFORM}} /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
 
         - name: Run wolfCrypt test
-          working-directory: ${{env.GITHUB_WORKSPACE}}
-          run: wolfssl\wrapper\CSharp\Debug\x64\wolfCrypt-test.exe
+          working-directory: ${{env.GITHUB_WORKSPACE}}wolfssl\wrapper\CSharp\Debug\x64\
+          run: ./wolfCrypt-test.exe
 
         - name: Run wolfSSL client/server example
-          working-directory: ${{env.GITHUB_WORKSPACE}}
-          run: |
-            wolfssl\wrapper\CSharp\Debug\x64\wolfSSL-TLS-Server.exe && sleep 1 & wolfssl\wrapper\CSharp\Debug\x64\wolfSSL-TLS-Client.exe
+          working-directory: ${{env.GITHUB_WORKSPACE}}wolfssl\wrapper\CSharp\Debug\x64\
+          run: ./wolfSSL-TLS-Server.exe && sleep 1 & ./wolfSSL-TLS-Client.exe
