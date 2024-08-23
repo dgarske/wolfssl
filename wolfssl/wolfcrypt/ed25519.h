@@ -177,7 +177,7 @@ int wc_ed25519_verify_msg_final(const byte* sig, word32 sigLen, int* res,
 #endif /* HAVE_ED25519_VERIFY */
 
 WOLFSSL_API
-ed25519_key* wc_ed25519_new(void* heap);
+ed25519_key* wc_ed25519_new(void* heap, int devId);
 WOLFSSL_API
 int wc_ed25519_init(ed25519_key* key);
 WOLFSSL_API

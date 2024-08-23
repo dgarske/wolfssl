@@ -21307,14 +21307,14 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t rsa_test(void)
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
     byte*  tmp = NULL;
     byte*  der = NULL;
-    RsaKey *key = (RsaKey *)XMALLOC(sizeof *key, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+    RsaKey *key = NULL;
 #else
     RsaKey key[1];
     byte tmp[FOURK_BUF];
 #endif
 #if defined(WOLFSSL_CERT_EXT) || defined(WOLFSSL_CERT_GEN)
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    RsaKey *keypub = (RsaKey *)XMALLOC(sizeof *keypub, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+    RsaKey *keypub = NULL;
 #else
     RsaKey keypub[1];
 #endif
@@ -21357,6 +21357,7 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t rsa_test(void)
     WC_ALLOC_VAR(in, byte, TEST_STRING_SZ, HEAP_HINT);
     WC_ALLOC_VAR(out, byte, RSA_TEST_BYTES, HEAP_HINT);
     WC_ALLOC_VAR(plain, byte, RSA_TEST_BYTES, HEAP_HINT);
+
     WOLFSSL_ENTER("rsa_test");
 
 #ifdef WC_DECLARE_VAR_IS_HEAP_ALLOC
@@ -21367,9 +21368,11 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t rsa_test(void)
     XMEMCPY(in, inStr, inLen);
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    key = wc_NewRsaKey(HEAP_HINT, devId);
     if (key == NULL)
         ERROR_OUT(MEMORY_E, exit_rsa);
 #if defined(WOLFSSL_CERT_EXT) || defined(WOLFSSL_CERT_GEN)
+    keypub = wc_NewRsaKey(HEAP_HINT, devId);
     if (keypub == NULL)
         ERROR_OUT(MEMORY_E, exit_rsa);
 #endif
@@ -21381,9 +21384,10 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t rsa_test(void)
 
     /* initialize stack structures */
     XMEMSET(&rng, 0, sizeof(rng));
-    XMEMSET(key, 0, sizeof *key);
+    /* memset also clears isAllocated bit, so free must be called manually */
+    XMEMSET(key, 0, sizeof(RsaKey));
 #if defined(WOLFSSL_CERT_EXT) || defined(WOLFSSL_CERT_GEN)
-    XMEMSET(keypub, 0, sizeof *keypub);
+    XMEMSET(keypub, 0, sizeof(RsaKey));
 #endif
 
 #if !defined(NO_ASN)
@@ -21937,12 +21941,12 @@ exit_rsa:
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
     if (key != NULL) {
         wc_FreeRsaKey(key);
-        XFREE(key, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+        XFREE(key, HEAP_HINT, DYNAMIC_TYPE_RSA);
     }
     #if defined(WOLFSSL_CERT_EXT) || defined(WOLFSSL_CERT_GEN)
     if (keypub != NULL) {
         wc_FreeRsaKey(keypub);
-        XFREE(keypub, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+        XFREE(keypub, HEAP_HINT, DYNAMIC_TYPE_RSA);
     }
     #endif
     #ifdef WOLFSSL_TEST_CERT
@@ -34785,7 +34789,11 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
     byte    exportBuf[32];
 #endif
     word32  x = 0;
-    curve25519_key userA, userB, pubKey;
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    curve25519_key *userA = NULL, *userB = NULL, *pubKey = NULL;
+#else
+    curve25519_key userA[1], userB[1], pubKey[1];
+#endif
 
 #if defined(HAVE_CURVE25519_SHARED_SECRET) && \
                                              defined(HAVE_CURVE25519_KEY_IMPORT)
@@ -34845,29 +34853,39 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    wc_curve25519_init_ex(&userA, HEAP_HINT, devId);
-    wc_curve25519_init_ex(&userB, HEAP_HINT, devId);
-    wc_curve25519_init_ex(&pubKey, HEAP_HINT, devId);
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    userA = wc_curve25519_new(HEAP_HINT, devId);
+    userB = wc_curve25519_new(HEAP_HINT, devId);
+    pubKey = wc_curve25519_new(HEAP_HINT, devId);
+    if (userA == NULL || userB == NULL || pubKey == NULL) {
+        ret = MEMORY_E;
+        return WC_TEST_RET_ENC_EC(ret);
+    }
+#else
+    wc_curve25519_init_ex(userA, HEAP_HINT, devId);
+    wc_curve25519_init_ex(userB, HEAP_HINT, devId);
+    wc_curve25519_init_ex(pubKey, HEAP_HINT, devId);
+#endif
 
     /* make curve25519 keys */
-    ret = wc_curve25519_make_key(&rng, 32, &userA);
+    ret = wc_curve25519_make_key(&rng, 32, userA);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    ret = wc_curve25519_make_key(&rng, 32, &userB);
+    ret = wc_curve25519_make_key(&rng, 32, userB);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
 #ifdef HAVE_CURVE25519_SHARED_SECRET
     /* find shared secret key */
     x = sizeof(sharedA);
-    if ((ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x)) != 0) {
+    if ((ret = wc_curve25519_shared_secret(userA, userB, sharedA, &x)) != 0) {
         printf("wc_curve25519_shared_secret 1 failed\n");
         return WC_TEST_RET_ENC_EC(ret);
     }
 
     y = sizeof(sharedB);
-    if ((ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y)) != 0) {
+    if ((ret = wc_curve25519_shared_secret(userB, userA, sharedB, &y)) != 0) {
         printf("wc_curve25519_shared_secret 2 failed\n");
         return WC_TEST_RET_ENC_EC(ret);
     }
@@ -34883,12 +34901,12 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
 #ifdef HAVE_CURVE25519_KEY_EXPORT
     /* export a public key and import it for another user */
     x = sizeof(exportBuf);
-    ret = wc_curve25519_export_public(&userA, exportBuf, &x);
+    ret = wc_curve25519_export_public(userA, exportBuf, &x);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
 #ifdef HAVE_CURVE25519_KEY_IMPORT
-    ret = wc_curve25519_import_public(exportBuf, x, &pubKey);
+    ret = wc_curve25519_import_public(exportBuf, x, pubKey);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 #endif
@@ -34899,7 +34917,7 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
     /* test shared key after importing a public key */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    if (wc_curve25519_shared_secret(&userB, &pubKey, sharedB, &y) != 0) {
+    if (wc_curve25519_shared_secret(userB, pubKey, sharedB, &y) != 0) {
         return WC_TEST_RET_ENC_NC;
     }
 
@@ -34908,19 +34926,19 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
 
     /* import RFC test vectors and compare shared key */
     ret = wc_curve25519_import_private_raw(sa, sizeof(sa), pa, sizeof(pa),
-                                           &userA);
+                                           userA);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     ret = wc_curve25519_import_private_raw(sb, sizeof(sb), pb, sizeof(pb),
-                                           &userB);
+                                           userB);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     /* test against known test vector */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    ret = wc_curve25519_shared_secret(&userA, &userB, sharedB, &y);
+    ret = wc_curve25519_shared_secret(userA, userB, sharedB, &y);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
@@ -34930,7 +34948,7 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
     /* test swapping roles of keys and generating same shared key */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+    ret = wc_curve25519_shared_secret(userB, userA, sharedB, &y);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
@@ -34939,24 +34957,32 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
 
     /* test with 1 generated key and 1 from known test vector */
     ret = wc_curve25519_import_private_raw(sa, sizeof(sa), pa, sizeof(pa),
-                                           &userA);
+                                           userA);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    wc_curve25519_free(&userB);
-    wc_curve25519_init_ex(&userB, HEAP_HINT, devId);
+    wc_curve25519_free(userB);
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    userB = wc_curve25519_new(HEAP_HINT, devId);
+    if (userB == NULL) {
+        ret = MEMORY_E;
+        return WC_TEST_RET_ENC_EC(ret);
+    }
+#else
+    wc_curve25519_init_ex(userB, HEAP_HINT, devId);
+#endif
 
-    ret = wc_curve25519_make_key(&rng, 32, &userB);
+    ret = wc_curve25519_make_key(&rng, 32, userB);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     x = sizeof(sharedA);
-    ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x);
+    ret = wc_curve25519_shared_secret(userA, userB, sharedA, &x);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     y = sizeof(sharedB);
-    ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+    ret = wc_curve25519_shared_secret(userB, userA, sharedB, &y);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
@@ -34983,9 +35009,9 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t curve25519_test(void)
 #endif
 
     /* clean up keys when done */
-    wc_curve25519_free(&pubKey);
-    wc_curve25519_free(&userB);
-    wc_curve25519_free(&userA);
+    wc_curve25519_free(pubKey);
+    wc_curve25519_free(userB);
+    wc_curve25519_free(userA);
 
     wc_FreeRng(&rng);
 
@@ -35508,8 +35534,15 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
 #endif /* HAVE_ED25519_VERIFY */
 #endif /* HAVE_ED25519_SIGN && HAVE_ED25519_KEY_EXPORT && HAVE_ED25519_KEY_IMPORT */
     word32 keySz, sigSz;
-    ed25519_key key;
-    ed25519_key key2;
+
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    ed25519_key* key = NULL;
+    ed25519_key* key2 = NULL;
+#else
+    ed25519_key  key[1];
+    ed25519_key  key2[1];
+#endif
+
 
 #if defined(HAVE_ED25519_SIGN) && defined(HAVE_ED25519_KEY_EXPORT) && \
     defined(HAVE_ED25519_KEY_IMPORT)
@@ -35890,8 +35923,13 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
 #endif /* NO_ASN */
 #endif /* HAVE_ED25519_SIGN && HAVE_ED25519_KEY_EXPORT && HAVE_ED25519_KEY_IMPORT */
 #if !defined(NO_ASN) && defined(HAVE_ED25519_SIGN)
-    ed25519_key key3;
+    #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    ed25519_key* key3 = NULL;
+    #else
+    ed25519_key  key3[1];
+    #endif
 #endif
+
     WOLFSSL_ENTER("ed25519_test");
 
     /* create ed25519 keys */
@@ -35903,19 +35941,36 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    wc_ed25519_init_ex(&key, HEAP_HINT, devId);
-    wc_ed25519_init_ex(&key2, HEAP_HINT, devId);
-#if !defined(NO_ASN) && defined(HAVE_ED25519_SIGN)
-    wc_ed25519_init_ex(&key3, HEAP_HINT, devId);
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    key =  wc_ed25519_new(HEAP_HINT, devId);
+    key2 = wc_ed25519_new(HEAP_HINT, devId);
+    if (key == NULL || key2 == NULL) {
+        ret = MEMORY_E;
+        return WC_TEST_RET_ENC_EC(ret);
+    }
+    #if !defined(NO_ASN) && defined(HAVE_ED25519_SIGN)
+    key3 = wc_ed25519_new(HEAP_HINT, devId);
+    if (key3 == NULL) {
+        ret = MEMORY_E;
+        return WC_TEST_RET_ENC_EC(ret);
+    }
+    #endif
+#else
+    wc_ed25519_init_ex(key, HEAP_HINT, devId);
+    wc_ed25519_init_ex(key2, HEAP_HINT, devId);
+    #if !defined(NO_ASN) && defined(HAVE_ED25519_SIGN)
+    wc_ed25519_init_ex(key3, HEAP_HINT, devId);
+    #endif
 #endif
+
 #ifdef HAVE_ED25519_MAKE_KEY
-    wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &key);
-    wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, &key2);
+    wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, key);
+    wc_ed25519_make_key(&rng, ED25519_KEY_SIZE, key2);
 #endif
 
     /* helper functions for signature and key size */
-    keySz = (word32)wc_ed25519_size(&key);
-    sigSz = (word32)wc_ed25519_sig_size(&key);
+    keySz = (word32)wc_ed25519_size(key);
+    sigSz = (word32)wc_ed25519_sig_size(key);
 
 #if defined(HAVE_ED25519_SIGN) && defined(HAVE_ED25519_KEY_EXPORT) &&\
         defined(HAVE_ED25519_KEY_IMPORT)
@@ -35924,10 +35979,10 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
         XMEMSET(out, 0, sizeof(out));
 
         if (wc_ed25519_import_private_key(sKeys[i], ED25519_KEY_SIZE, pKeys[i],
-                pKeySz[i], &key) != 0)
+                pKeySz[i], key) != 0)
             return WC_TEST_RET_ENC_I(i);
 
-        if (wc_ed25519_sign_msg(msgs[i], msgSz[i], out, &outlen, &key) != 0)
+        if (wc_ed25519_sign_msg(msgs[i], msgSz[i], out, &outlen, key) != 0)
             return WC_TEST_RET_ENC_I(i);
 
         if (XMEMCMP(out, sigs[i], 64))
@@ -35936,55 +35991,55 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
 #if defined(HAVE_ED25519_VERIFY)
         /* test verify on good msg */
         if (wc_ed25519_verify_msg(out, outlen, msgs[i], msgSz[i], &verify,
-                    &key) != 0 || verify != 1)
+                    key) != 0 || verify != 1)
             return WC_TEST_RET_ENC_I(i);
 
 #ifdef WOLFSSL_ED25519_STREAMING_VERIFY
         /* test verify on good msg using streaming interface directly */
         if (wc_ed25519_verify_msg_init(out, outlen,
-                                       &key, (byte)Ed25519, NULL, 0) != 0)
+                                       key, (byte)Ed25519, NULL, 0) != 0)
             return WC_TEST_RET_ENC_I(i);
         for (j = 0; j < msgSz[i]; j += i) {
-            if (wc_ed25519_verify_msg_update(msgs[i] + j, MIN(i, msgSz[i] - j), &key) != 0)
+            if (wc_ed25519_verify_msg_update(msgs[i] + j, MIN(i, msgSz[i] - j), key) != 0)
                 return WC_TEST_RET_ENC_I(i);
         }
         if (wc_ed25519_verify_msg_final(out, outlen, &verify,
-                                        &key) != 0 || verify != 1)
+                                        key) != 0 || verify != 1)
             return WC_TEST_RET_ENC_I(i);
 #endif /* WOLFSSL_ED25519_STREAMING_VERIFY */
 
         /* test verify on bad msg */
         out[outlen-1] = out[outlen-1] + 1;
         if (wc_ed25519_verify_msg(out, outlen, msgs[i], msgSz[i], &verify,
-                    &key) == 0 || verify == 1)
+                    key) == 0 || verify == 1)
             return WC_TEST_RET_ENC_I(i);
 #endif /* HAVE_ED25519_VERIFY */
 
         /* test api for import/exporting keys */
         exportPSz = sizeof(exportPKey);
         exportSSz = sizeof(exportSKey);
-        if (wc_ed25519_export_public(&key, exportPKey, &exportPSz) != 0)
+        if (wc_ed25519_export_public(key, exportPKey, &exportPSz) != 0)
             return WC_TEST_RET_ENC_I(i);
 
-        if (wc_ed25519_import_public_ex(exportPKey, exportPSz, &key2, 1) != 0)
+        if (wc_ed25519_import_public_ex(exportPKey, exportPSz, key2, 1) != 0)
             return WC_TEST_RET_ENC_I(i);
 
-        if (wc_ed25519_export_private_only(&key, exportSKey, &exportSSz) != 0)
+        if (wc_ed25519_export_private_only(key, exportSKey, &exportSSz) != 0)
             return WC_TEST_RET_ENC_I(i);
 
         if (wc_ed25519_import_private_key(exportSKey, exportSSz,
-                                          exportPKey, exportPSz, &key2) != 0)
+                                          exportPKey, exportPSz, key2) != 0)
             return WC_TEST_RET_ENC_I(i);
 
         /* clear "out" buffer and test sign with imported keys */
         outlen = sizeof(out);
         XMEMSET(out, 0, sizeof(out));
-        if (wc_ed25519_sign_msg(msgs[i], msgSz[i], out, &outlen, &key2) != 0)
+        if (wc_ed25519_sign_msg(msgs[i], msgSz[i], out, &outlen, key2) != 0)
             return WC_TEST_RET_ENC_I(i);
 
 #if defined(HAVE_ED25519_VERIFY)
         if (wc_ed25519_verify_msg(out, outlen, msgs[i], msgSz[i], &verify,
-                                  &key2) != 0 || verify != 1)
+                                  key2) != 0 || verify != 1)
             return WC_TEST_RET_ENC_I(i);
 
         if (XMEMCMP(out, sigs[i], 64))
@@ -36040,27 +36095,27 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
         };
 
         ret = wc_ed25519_import_private_key(sKeys[0], ED25519_KEY_SIZE,
-                pKeys[0], pKeySz[0], &key);
+                pKeys[0], pKeySz[0], key);
         if (ret != 0)
             return ret;
 
         ret = wc_ed25519_verify_msg(rareEd1, sizeof(rareEd1), msgs[0], msgSz[0],
-                &verify, &key);
+                &verify, key);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return ret;
 
         ret = wc_ed25519_verify_msg(rareEd2, sizeof(rareEd2), msgs[0], msgSz[0],
-                &verify, &key);
+                &verify, key);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return ret;
 
         ret = wc_ed25519_verify_msg(rareEd3, sizeof(rareEd3), msgs[0], msgSz[0],
-                &verify, &key);
+                &verify, key);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return ret;
 
         ret = wc_ed25519_verify_msg(rareEd4, sizeof(rareEd4), msgs[0], msgSz[0],
-                &verify, &key);
+                &verify, key);
         if (ret != WC_NO_ERR_TRACE(SIG_VERIFY_E))
             return ret;
     }
@@ -36076,33 +36131,33 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
 #ifndef NO_ASN
     /* Try ASN.1 encoded private-only key and public key. */
     idx = 0;
-    ret = wc_Ed25519PrivateKeyDecode(privateEd25519, &idx, &key3,
+    ret = wc_Ed25519PrivateKeyDecode(privateEd25519, &idx, key3,
                                      sizeof(privateEd25519));
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     idx = 0;
-    if (wc_Ed25519PrivateKeyDecode(badPrivateEd25519, &idx, &key3,
+    if (wc_Ed25519PrivateKeyDecode(badPrivateEd25519, &idx, key3,
                                    sizeof(badPrivateEd25519)) == 0)
         return WC_TEST_RET_ENC_NC;
 
-    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, &key3);
+    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, key3);
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
 
     /* try with a buffer size that is too large */
     idx = 0;
-    if (wc_Ed25519PublicKeyDecode(badPublicEd25519, &idx, &key3,
+    if (wc_Ed25519PublicKeyDecode(badPublicEd25519, &idx, key3,
                                   sizeof(badPublicEd25519)) == 0)
         return WC_TEST_RET_ENC_NC;
 
     idx = 0;
-    ret = wc_Ed25519PublicKeyDecode(publicEd25519, &idx, &key3,
+    ret = wc_Ed25519PublicKeyDecode(publicEd25519, &idx, key3,
                                     sizeof(publicEd25519));
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, &key3);
+    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, key3);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
@@ -36111,35 +36166,43 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t ed25519_test(void)
 
 #if defined(HAVE_ED25519_VERIFY)
     /* test verify on good msg */
-    ret = wc_ed25519_verify_msg(out, outlen, msgs[0], msgSz[0], &verify, &key3);
+    ret = wc_ed25519_verify_msg(out, outlen, msgs[0], msgSz[0], &verify, key3);
     if (ret != 0 || verify != 1)
         return WC_TEST_RET_ENC_EC(ret);
 
 #endif /* HAVE_ED25519_VERIFY */
 
-    wc_ed25519_free(&key3);
-    wc_ed25519_init(&key3);
+    wc_ed25519_free(key3);
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    key3 = wc_ed25519_new(HEAP_HINT, devId);
+    if (key3 == NULL) {
+        ret = MEMORY_E;
+        return WC_TEST_RET_ENC_EC(ret);
+    }
+#else
+    wc_ed25519_init_ex(key3, HEAP_HINT, devId);
+#endif
 
     idx = 0;
-    ret = wc_Ed25519PrivateKeyDecode(privPubEd25519, &idx, &key3,
+    ret = wc_Ed25519PrivateKeyDecode(privPubEd25519, &idx, key3,
                                      sizeof(privPubEd25519));
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
-    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, &key3);
+    ret = wc_ed25519_sign_msg(msgs[0], msgSz[0], out, &outlen, key3);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
 
     if (XMEMCMP(out, sigs[0], 64))
         return WC_TEST_RET_ENC_NC;
 
-    wc_ed25519_free(&key3);
+    wc_ed25519_free(key3);
 #endif /* NO_ASN */
 #endif /* HAVE_ED25519_SIGN && HAVE_ED25519_KEY_EXPORT && HAVE_ED25519_KEY_IMPORT */
 
     /* clean up keys when done */
-    wc_ed25519_free(&key);
-    wc_ed25519_free(&key2);
+    wc_ed25519_free(key);
+    wc_ed25519_free(key2);
 
 #if defined(HAVE_HASHDRBG) || defined(NO_RC4)
     wc_FreeRng(&rng);

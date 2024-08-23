@@ -52,29 +52,34 @@ make check
 sudo make install
 ```
 
-### Build and run the wrapper
+### Build and run the wolfCrypt test wrapper
 
-From the wolfssl root directory:
+From the `wrapper/CSharp` directory (`cd wrapper/CSharp`):
+
+Compile wolfCrypt test:
 
 ```
-cd wrapper/CSharp
+mcs wolfCrypt-Test/wolfCrypt-Test.cs wolfSSL_CSharp/wolfCrypt.cs -OUT:wolfcrypttest.exe
+mono wolfcrypttest.exe
 ```
+
+### Build and run the wolfSSL client/server test
+
+From the `wrapper/CSharp` directory (`cd wrapper/CSharp`):
 
 Compile server:
 
 ```
-mcs wolfSSL_CSharp/wolfSSL.cs wolfSSL_CSharp/X509.cs \
-wolfSSL-TLS-Server/wolfSSL-TLS-Server.cs -OUT:server.exe
+mcs wolfSSL_CSharp/wolfSSL.cs wolfSSL_CSharp/X509.cs wolfSSL-TLS-Server/wolfSSL-TLS-Server.cs -OUT:server.exe
 ```
 
 Compile client:
 
 ```
-mcs wolfSSL_CSharp/wolfSSL.cs wolfSSL_CSharp/X509.cs \
-wolfSSL-TLS-Client/wolfSSL-TLS-Client.cs -OUT:client.exe
+mcs wolfSSL_CSharp/wolfSSL.cs wolfSSL_CSharp/X509.cs wolfSSL-TLS-Client/wolfSSL-TLS-Client.cs -OUT:client.exe
 ```
 
-### Run the example
+#### Run the example
 
 In one terminal instance run the server:
 
@@ -88,7 +93,7 @@ And in another terminal instance run the client:
 mono client.exe
 ```
 
-### Enabling SNI
+#### Enabling SNI
 
 To enable SNI, just pass the `-S` argument with the specified hostname to the client:
 
