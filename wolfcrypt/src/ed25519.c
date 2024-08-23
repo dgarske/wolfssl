@@ -1023,8 +1023,14 @@ int wc_ed25519_init(ed25519_key* key)
 /* clear memory of key */
 void wc_ed25519_free(ed25519_key* key)
 {
+    int isAllocated = 0;
+    void* heap;
+
     if (key == NULL)
         return;
+
+    isAllocated = key->isAllocated;
+    heap = key->heap;
 
 #ifdef WOLFSSL_ED25519_PERSISTENT_SHA
     ed25519_hash_free(key, &key->sha);
@@ -1039,8 +1045,7 @@ void wc_ed25519_free(ed25519_key* key)
     wc_MemZero_Check(key, sizeof(ed25519_key));
 #endif
 
-    if (key->isAllocated) {
-        void* heap = key->heap;
+    if (isAllocated) {
         XFREE(key, heap, DYNAMIC_TYPE_ED25519);
         (void)heap;
     }
