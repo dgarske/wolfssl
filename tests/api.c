@@ -27135,7 +27135,7 @@ static int test_wc_EccPrivateKeyToDer(void)
     byte    output[ONEK_BUF];
     ecc_key eccKey;
     WC_RNG  rng;
-    word32  inLen;
+    word32  inLen = 0;
     word32  outLen = 0;
     int     ret;
 
@@ -27151,11 +27151,11 @@ static int test_wc_EccPrivateKeyToDer(void)
 #endif
     ExpectIntEQ(ret, 0);
 
-    inLen = (word32)sizeof(output);
     /* Bad Cases */
     ExpectIntEQ(wc_EccPrivateKeyToDer(NULL, NULL, 0), BAD_FUNC_ARG);
     ExpectIntEQ(wc_EccPrivateKeyToDer(NULL, output, inLen), BAD_FUNC_ARG);
-    ExpectIntEQ(wc_EccPrivateKeyToDer(&eccKey, NULL, inLen), LENGTH_ONLY_E);
+    inLen = wc_EccPrivateKeyToDer(&eccKey, NULL, 0);
+    ExpectIntGT(inLen, 0);
     ExpectIntEQ(wc_EccPrivateKeyToDer(&eccKey, output, 0), BAD_FUNC_ARG);
     /* Good Case */
     ExpectIntGT(outLen = (word32)wc_EccPrivateKeyToDer(&eccKey, output, inLen), 0);
