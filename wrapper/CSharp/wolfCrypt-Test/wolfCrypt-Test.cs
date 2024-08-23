@@ -172,11 +172,10 @@ public class wolfCrypt_Test_CSharp
     private static void rsa_test(string hashAlgorithm, int keySize)
     {
         IntPtr key = IntPtr.Zero;
-
-        Console.WriteLine("\nStarting RSA tests...");
-
         IntPtr heap = IntPtr.Zero;
         int devId = wolfcrypt.INVALID_DEVID;
+
+        Console.WriteLine("\nStarting RSA" + keySize + " test for " + hashAlgorithm + "...");
 
         /* Generate RSA Key Pair */
         Console.WriteLine("Testing RSA Key Generation...");
@@ -273,13 +272,13 @@ public class wolfCrypt_Test_CSharp
         Console.WriteLine("Testing ED25519 Key Export and Import...");
         /* Export Private */
         ret = wolfcrypt.Ed25519ExportKeyToDer(key, out privKey);
-        if (ret != 0 || privKey == null)
+        if (ret < 0 || privKey == null)
         {
             throw new Exception("Ed25519ExportKeyToDer failed");
         }
         /* Export Public */
-        ret =wolfcrypt.Ed25519ExportPublicKeyToDer(key, out pubKey, true);
-        if (ret != 0 || pubKey == null)
+        ret = wolfcrypt.Ed25519ExportPublicKeyToDer(key, out pubKey, true);
+        if (ret < 0 || pubKey == null)
         {
             throw new Exception("Ed25519ExportKeyToDer failed");
         }
@@ -357,7 +356,7 @@ public class wolfCrypt_Test_CSharp
         /* Export Public Key B to DER format */
         Console.WriteLine("Exporting Public Key B to DER format...");
         ret = wolfcrypt.Curve25519ExportPublicKeyToDer(keyB, out derKey, true);
-        if (ret != 0 || derKey == null)
+        if (ret < 0 || derKey == null)
         {
             throw new Exception("Curve25519ExportPublicKeyToDer failed");
         }
@@ -384,7 +383,7 @@ public class wolfCrypt_Test_CSharp
         /* Export Public Key A to DER format */
         Console.WriteLine("Exporting Public Key A to DER format...");
         ret = wolfcrypt.Curve25519ExportPublicKeyToDer(keyA, out derKey, true);
-        if (ret != 0 || derKey == null)
+        if (ret < 0 || derKey == null)
         {
             throw new Exception("Curve25519ExportPublicKeyToDer failed");
         }
@@ -462,6 +461,7 @@ public class wolfCrypt_Test_CSharp
         catch (Exception ex)
         {
             Console.WriteLine($"An error occurred: {ex.Message}");
+            Environment.Exit(-1);
         }
     }
 }

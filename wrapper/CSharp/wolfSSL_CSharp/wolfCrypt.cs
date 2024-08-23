@@ -244,9 +244,6 @@ namespace wolfSSL.CSharp
             internal_log(lvl, ptr);
         }
 
-        [DllImport("kernel32.dll", EntryPoint = "RtlFillMemory", SetLastError = false)]
-        private extern static void RtlFillMemory(IntPtr destination, uint length, byte fill);
-
         /********************************
          * Enum types from wolfSSL library
          */
@@ -475,7 +472,7 @@ namespace wolfSSL.CSharp
                 {
                     IntPtr idx = Marshal.AllocHGlobal(sizeof(uint));
                     IntPtr keydata = Marshal.AllocHGlobal(keyASN1.Length);
-                    RtlFillMemory(idx, sizeof(uint), 0); /* zero init */
+                    Marshal.WriteInt32(idx, 0);
                     Marshal.Copy(keyASN1, 0, keydata, keyASN1.Length);
                     ret = wc_EccPrivateKeyDecode(keydata, idx, key, Convert.ToUInt32(keyASN1.Length));
                     if (ret != 0)
@@ -489,7 +486,7 @@ namespace wolfSSL.CSharp
             }
             catch (Exception e)
             {
-                log(ERROR_LOG, "ECC make key exception " + e.ToString());
+                log(ERROR_LOG, "ECC import key exception " + e.ToString());
                 EccFreeKey(key); /* make sure its free'd */
                 key = IntPtr.Zero;
             }
@@ -519,6 +516,7 @@ namespace wolfSSL.CSharp
                 sigPtr = Marshal.AllocHGlobal(signature.Length);
                 sigLen = Marshal.AllocHGlobal(sizeof(uint));
 
+                Marshal.WriteInt32(sigLen, signature.Length);
                 Marshal.Copy(hash, 0, hashPtr, hash.Length);
                 ret = wc_ecc_sign_hash(hashPtr, Convert.ToUInt32(hash.Length), sigPtr, sigLen, rng, key);
 
@@ -782,7 +780,7 @@ namespace wolfSSL.CSharp
                 {
                     IntPtr idx = Marshal.AllocHGlobal(sizeof(uint));
                     IntPtr keydata = Marshal.AllocHGlobal(keyASN1.Length);
-                    RtlFillMemory(idx, sizeof(uint), 0); /* zero init */
+                    Marshal.WriteInt32(idx, 0);
                     Marshal.Copy(keyASN1, 0, keydata, keyASN1.Length);
                     ret = wc_RsaPrivateKeyDecode(keydata, idx, key, Convert.ToUInt32(keyASN1.Length));
                     if (ret != 0)
