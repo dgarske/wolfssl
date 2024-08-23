@@ -542,10 +542,15 @@ int wc_RsaGetKeyId(RsaKey* key, word32* keyId)
 int wc_FreeRsaKey(RsaKey* key)
 {
     int ret = 0;
+    int isAllocated = 0;
+    void* heap;
 
     if (key == NULL) {
         return BAD_FUNC_ARG;
     }
+
+    isAllocated = key->isAllocated;
+    heap = key->heap;
 
     wc_RsaCleanup(key);
 
@@ -610,8 +615,7 @@ int wc_FreeRsaKey(RsaKey* key)
     wc_fspsm_RsaKeyFree(key);
 #endif
 
-    if (key->isAllocated) {
-        void* heap = key->heap;
+    if (isAllocated) {
         XFREE(key, heap, DYNAMIC_TYPE_RSA);
         (void)heap;
     }

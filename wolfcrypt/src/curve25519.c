@@ -707,8 +707,14 @@ int wc_curve25519_init(curve25519_key* key)
 /* Clean the memory of a key */
 void wc_curve25519_free(curve25519_key* key)
 {
+    int isAllocated = 0;
+    void* heap;
+
     if (key == NULL)
        return;
+
+    isAllocated = key->isAllocated;
+    heap = key->heap;
 
 #ifdef WOLFSSL_SE050
     se050_curve25519_free_key(key);
@@ -719,12 +725,12 @@ void wc_curve25519_free(curve25519_key* key)
     XMEMSET(&key->p, 0, sizeof(key->p));
     key->pubSet = 0;
     key->privSet = 0;
+
 #ifdef WOLFSSL_CHECK_MEM_ZERO
     wc_MemZero_Check(key, sizeof(curve25519_key));
 #endif
 
-    if (key->isAllocated) {
-        void* heap = key->heap;
+    if (isAllocated) {
         XFREE(key, heap, DYNAMIC_TYPE_CURVE25519);
         (void)heap;
     }
