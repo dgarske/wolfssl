@@ -1,6 +1,6 @@
 /* wolfCrypt.cs
  *
- * Copyright (C) 2006-2020 wolfSSL Inc.
+ * Copyright (C) 2006-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -169,7 +169,7 @@ namespace wolfSSL.CSharp
         private extern static int wc_curve25519_make_key(IntPtr rng, int keysize, IntPtr key);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_curve25519_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
-        
+
         /* ASN.1 DER format */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private static extern int wc_Curve25519PrivateKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
@@ -604,19 +604,31 @@ namespace wolfSSL.CSharp
         /// </summary>
         /// <param name="key">ECC key structure</param>
         /// <returns>DER-encoded private key as byte array</returns>
-        public static byte[] ExportPrivateKeyToDer(IntPtr key)
+        public static int ExportPrivateKeyToDer(IntPtr key, out byte[] derKey)
         {
-            int bufferSize = 1024; /* Adjust buffer size as needed */
-            byte[] derKey = new byte[bufferSize];
-            int ret = wc_EccPrivateKeyToDer(key, derKey, (uint)bufferSize);
+            int ret;
+            derKey = null;
 
-            if (ret < 0)
+            try
             {
-                throw new Exception("Failed to export ECC private key to DER format. Error code: " + ret);
+                int bufferSize = wc_EccPrivateKeyToDer(key, null, 0);
+                if (bufferSize < 0) {
+                    log(ERROR_LOG, "ECC private key get size failed " + bufferSize.ToString());
+                    return bufferSize;
+                }
+                derKey = new byte[bufferSize];
+                ret = wc_EccPrivateKeyToDer(key, derKey, (uint)bufferSize);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "ECC private key to der failed " + ret.ToString());
+                }
             }
-
-            Array.Resize(ref derKey, ret); /* Resize to actual length */
-            return derKey;
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC export private exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            return ret;
         }
 
         /// <summary>
@@ -625,19 +637,31 @@ namespace wolfSSL.CSharp
         /// <param name="key">ECC key structure</param>
         /// <param name="includeCurve">Include algorithm curve in the output</param>
         /// <returns>DER-encoded public key as byte array</returns>
-        public static byte[] ExportPublicKeyToDer(IntPtr key, bool includeCurve)
+        public static int ExportPublicKeyToDer(IntPtr key, out byte[] derKey, bool includeCurve)
         {
-            int bufferSize = 1024; /* Adjust buffer size as needed */
-            byte[] derKey = new byte[bufferSize];
-            int ret = wc_EccPublicKeyToDer(key, derKey, (uint)bufferSize, includeCurve ? 1 : 0);
+            int ret;
+            derKey = null;
 
-            if (ret < 0)
+            try
             {
-                throw new Exception("Failed to export ECC public key to DER format. Error code: " + ret);
+                int bufferSize = wc_EccPublicKeyToDer(key, null, 0, includeCurve ? 1 : 0);
+                if (bufferSize < 0) {
+                    log(ERROR_LOG, "ECC public key get size failed " + bufferSize.ToString());
+                    return bufferSize;
+                }
+                derKey = new byte[bufferSize];
+                ret = wc_EccPublicKeyToDer(key, derKey, (uint)bufferSize, includeCurve ? 1 : 0);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "ECC public key to der failed " + ret.ToString());
+                }
             }
-
-            Array.Resize(ref derKey, ret); /* Resize to actual length */
-            return derKey;
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC export public exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            return ret;
         }
 
         /// <summary>
@@ -1098,7 +1122,7 @@ namespace wolfSSL.CSharp
             }
 
             return key;
-        } 
+        }
 
         /// <summary>
         /// Decode an ED25519 public key from DER format.
@@ -1161,7 +1185,7 @@ namespace wolfSSL.CSharp
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to export ED25519 private key to DER format. Error code: " + ret);
-                    return ret; 
+                    return ret;
                 }
             }
             catch(Exception e)
@@ -1169,7 +1193,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "ED25519 export private key to DER exception: " + e.ToString());
                 return EXCEPTION_E;
             }
-            
+
             return ret;
         }
 
@@ -1200,7 +1224,7 @@ namespace wolfSSL.CSharp
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to export ED25519 private key to DER format. Error code: " + ret);
-                    return ret; 
+                    return ret;
                 }
             }
             catch (Exception e)
@@ -1208,7 +1232,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "ED25519 export private key to DER exception: " + e.ToString());
                 return EXCEPTION_E;
             }
-           
+
             return ret;
         }
 
@@ -1231,7 +1255,7 @@ namespace wolfSSL.CSharp
                 if (len < 0)
                 {
                     log(ERROR_LOG, "Failed to determine length. Error code: " + len);
-                    return len; 
+                    return len;
                 }
 
                 pubKey = new byte[len];
@@ -1248,7 +1272,7 @@ namespace wolfSSL.CSharp
                 return EXCEPTION_E;
             }
 
-            return ret; 
+            return ret;
         }
 
         /// <summary>
@@ -1633,13 +1657,12 @@ namespace wolfSSL.CSharp
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to export Curve25519 public key to DER format. Error code: " + ret);
-                    return ret;
                 }
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "Curve25519 export public key to DER exception: " + e.ToString());
-                return EXCEPTION_E;
+                ret = EXCEPTION_E;
             }
 
             return ret;
@@ -1785,7 +1808,7 @@ namespace wolfSSL.CSharp
         public static (byte[] privateKey, byte[] publicKey) Curve25519ExportKeyRaw(IntPtr key)
         {
             byte[] privateKey = new byte[ED25519_KEY_SIZE];
-            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];  
+            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];
             uint privSize = (uint)privateKey.Length;
             uint pubSize = (uint)publicKey.Length;
             int ret = wc_curve25519_export_key_raw(key, privateKey, ref privSize, publicKey, ref pubSize);

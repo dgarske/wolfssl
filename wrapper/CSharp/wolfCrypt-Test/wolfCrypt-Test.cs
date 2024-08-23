@@ -1,6 +1,6 @@
 /* wolfCrypt-Test.cs
  *
- * Copyright (C) 2006-2020 wolfSSL Inc.
+ * Copyright (C) 2006-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -62,6 +62,7 @@ public class wolfCrypt_Test_CSharp
 
     private static void ecc_test(string hashAlgorithm, int keySize)
     {
+        int ret;
         IntPtr PrivKey = IntPtr.Zero;
         IntPtr PubKey = IntPtr.Zero;
         IntPtr key = IntPtr.Zero;
@@ -81,9 +82,16 @@ public class wolfCrypt_Test_CSharp
 
             /* Export and Import Key */
             Console.WriteLine("Testing ECC Key Export and Import...");
-            byte[] privateKeyDer = wolfcrypt.ExportPrivateKeyToDer(key);
-            byte[] publicKeyDer = wolfcrypt.ExportPublicKeyToDer(key, true);
-
+            byte[] privateKeyDer;
+            ret = wolfcrypt.ExportPrivateKeyToDer(key, out privateKeyDer);
+            if (ret != 0) {
+                throw new Exception("ExportPrivateKeyToDer ailed");
+            }
+            byte[] publicKeyDer;
+            ret = wolfcrypt.ExportPublicKeyToDer(key, out publicKeyDer, true);
+            if (ret != 0) {
+                throw new Exception("ExportPublicKeyToDer ailed");
+            }
             PrivKey = wolfcrypt.EccImportKey(privateKeyDer);
             if (PrivKey == IntPtr.Zero)
             {
@@ -283,14 +291,14 @@ public class wolfCrypt_Test_CSharp
             /* Export and Import Key */
             Console.WriteLine("Testing ED25519 Key Export and Import...");
             /* Export Private */
-            int privateKeyDer = wolfcrypt.Ed25519ExportKeyToDer(key, out privKey);
-            if (key == IntPtr.Zero || privKey == null)
+            ret = wolfcrypt.Ed25519ExportKeyToDer(key, out privKey);
+            if (ret != 0 || privKey == null)
             {
                 throw new Exception("Ed25519ExportKeyToDer failed");
             }
             /* Export Public */
-            int publicKeyDer = wolfcrypt.Ed25519ExportPublicKeyToDer(key, out pubKey, true);
-            if (key == IntPtr.Zero || pubKey == null)
+            ret =wolfcrypt.Ed25519ExportPublicKeyToDer(key, out pubKey, true);
+            if (ret != 0 || pubKey == null)
             {
                 throw new Exception("Ed25519ExportKeyToDer failed");
             }
@@ -340,13 +348,14 @@ public class wolfCrypt_Test_CSharp
         finally
         {
             /* Cleanup */
-            if (key != IntPtr.Zero) wolfcrypt.Ed25519FreeKey(key);           
+            if (key != IntPtr.Zero) wolfcrypt.Ed25519FreeKey(key);
         }
         Console.WriteLine("ED25519 test completed successfully.\n");
     } /* END ed25519_test */
 
     private static void curve25519_test()
     {
+        int ret;
         IntPtr keyA = IntPtr.Zero;
         IntPtr keyB = IntPtr.Zero;
         IntPtr publicKeyA = IntPtr.Zero;
@@ -376,7 +385,11 @@ public class wolfCrypt_Test_CSharp
 
             /* Export Public Key B to DER format */
             Console.WriteLine("Exporting Public Key B to DER format...");
-            int publicKeyBDer = wolfcrypt.Curve25519ExportPublicKeyToDer(keyB, out derKey, true);
+            ret = wolfcrypt.Curve25519ExportPublicKeyToDer(keyB, out derKey, true);
+            if (ret != 0 || derKey == null)
+            {
+                throw new Exception("Curve25519ExportPublicKeyToDer failed");
+            }
 
             /* Decode Public Key B from DER format */
             Console.WriteLine("Decoding Public Key B from DER format...");
@@ -395,11 +408,15 @@ public class wolfCrypt_Test_CSharp
             {
                 throw new Exception("Failed to compute shared secret A. Error code: " + retA);
             }
-            Console.WriteLine("Curve25519 shared sercret created using private Key A.");
+            Console.WriteLine("Curve25519 shared secret created using private Key A.");
 
             /* Export Public Key A to DER format */
             Console.WriteLine("Exporting Public Key A to DER format...");
-            int publicKeyADer = wolfcrypt.Curve25519ExportPublicKeyToDer(keyA, out derKey, true);
+            ret = wolfcrypt.Curve25519ExportPublicKeyToDer(keyA, out derKey, true);
+            if (ret != 0 || derKey == null)
+            {
+                throw new Exception("Curve25519ExportPublicKeyToDer failed");
+            }
 
             /* Decode Public Key A from DER format */
             Console.WriteLine("Decoding Public Key A from DER format...");
@@ -417,7 +434,7 @@ public class wolfCrypt_Test_CSharp
             {
                 throw new Exception("Failed to compute shared secret B. Error code: " + retB);
             }
-            Console.WriteLine("Curve25519 shared sercret created using private Key B.");
+            Console.WriteLine("Curve25519 shared secret created using private Key B.");
 
             /* Compare Shared Secrets */
             Console.WriteLine("Comparing Shared Secrets...");
@@ -427,7 +444,7 @@ public class wolfCrypt_Test_CSharp
             }
             else
             {
-                Console.WriteLine("Curve25519 shared sercret match.");
+                Console.WriteLine("Curve25519 shared secret match.");
             }
         }
         catch (Exception ex)
