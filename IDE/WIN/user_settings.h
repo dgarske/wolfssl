@@ -16,11 +16,16 @@
 #define WOLFSSL_DTLS13
 #define WOLFSSL_SEND_HRR_COOKIE
 #define WOLFSSL_DTLS_CID
+
+/* Added for CSHarp wrapper */
 #define WOLFSSL_KEY_GEN
-#define DEBUG_WOLFSSL
+#define WOLFSSL_ASN_TEMPLATE /* default */
 #define HAVE_ED25519
-#define WOLFSSL_ASN_TEMPLATE
 #define HAVE_CURVE25519
+#define WOLFSSL_SHA512
+
+/* optional debug logging */
+#define DEBUG_WOLFSSL
 
 /* Configurations */
 #if defined(HAVE_FIPS)
