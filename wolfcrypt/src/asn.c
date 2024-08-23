@@ -22552,7 +22552,7 @@ static int DecodeCertReq(DecodedCert* cert, int* criticalExt)
 {
     DECL_ASNGETDATA(dataASN, certReqASN_Length);
     int ret = 0;
-    byte version;
+    byte version = 0;
     word32 idx;
 
     CALLOC_ASNGETDATA(dataASN, certReqASN_Length, ret, cert->heap);
@@ -27698,7 +27698,7 @@ static int SetCertificatePolicies(byte *output,
     byte   oid[MAX_OID_SZ];
     word32 oidSz;
     word32 sz = 0;
-    int    piSz;
+    int    piSz = 0;
 
     if ((input == NULL) || (nb_certpol > MAX_CERTPOL_NB)) {
         ret = BAD_FUNC_ARG;
@@ -30231,8 +30231,8 @@ int AddSignature(byte* buf, int bodySz, const byte* sig, int sigSz,
     return (int)(idx + seqSz);
 #else
     DECL_ASNSETDATA(dataASN, sigASN_Length);
-    word32 seqSz;
-    int sz;
+    word32 seqSz = 0;
+    int sz = 0;
     int ret = 0;
 
     CALLOC_ASNSETDATA(dataASN, sigASN_Length, ret, NULL);
@@ -34813,6 +34813,7 @@ int wc_BuildEccKeyDer(ecc_key* key, byte* output, word32 *inLen,
 
 /* Write a Private ecc key, including public to DER format,
  * length on success else < 0 */
+/* Note: use wc_EccKeyDerSize to get length only */
 WOLFSSL_ABI
 int wc_EccKeyToDer(ecc_key* key, byte* output, word32 inLen)
 {
@@ -34824,10 +34825,7 @@ int wc_EccKeyToDer(ecc_key* key, byte* output, word32 inLen)
 int wc_EccKeyDerSize(ecc_key* key, int pub)
 {
     word32 sz = 0;
-    int ret;
-
-    ret = wc_BuildEccKeyDer(key, NULL, &sz, pub, 1);
-
+    int ret = wc_BuildEccKeyDer(key, NULL, &sz, pub, 1);
     if (ret != WC_NO_ERR_TRACE(LENGTH_ONLY_E)) {
         return ret;
     }
@@ -34838,7 +34836,11 @@ int wc_EccKeyDerSize(ecc_key* key, int pub)
  * length on success else < 0 */
 int wc_EccPrivateKeyToDer(ecc_key* key, byte* output, word32 inLen)
 {
-    return wc_BuildEccKeyDer(key, output, &inLen, 0, 1);
+    int ret = wc_BuildEccKeyDer(key, output, &inLen, 0, 1);
+    if (ret == WC_NO_ERR_TRACE(LENGTH_ONLY_E)) {
+        return (int)inLen;
+    }
+    return ret;
 }
 
 #ifdef HAVE_PKCS8
