@@ -23471,7 +23471,7 @@ int wc_CertGetPubKey(const byte* cert, word32 certSz,
     const unsigned char** pubKey, word32* pubKeySz)
 {
     int ret = 0;
-    int l;
+    int l = 0;
     word32 o = 0;
     int i;
     static DecodeInstr ops[] = {
@@ -35406,7 +35406,7 @@ int SetAsymKeyDer(const byte* privKey, word32 privKeyLen,
     word32 idx = 0, seqSz, verSz, algoSz, privSz, pubSz = 0, sz;
 #else
     DECL_ASNSETDATA(dataASN, edKeyASN_Length);
-    int sz;
+    int sz = 0;
 #endif
 
     /* validate parameters */
