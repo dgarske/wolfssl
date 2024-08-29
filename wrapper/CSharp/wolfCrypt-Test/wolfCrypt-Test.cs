@@ -26,6 +26,7 @@ using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
 using wolfSSL.CSharp;
+using System.Runtime.InteropServices;
 
 public class wolfCrypt_Test_CSharp
 {
@@ -424,6 +425,98 @@ public class wolfCrypt_Test_CSharp
         if (publicKeyB != IntPtr.Zero) wolfcrypt.Curve25519FreeKey(publicKeyB);
     } /* END curve25519_test */
 
+    private static void aes_gcm_test()
+    {
+        IntPtr aes = IntPtr.Zero;
+        byte[] key;
+        byte[] iv;
+        byte[] plaintext;
+        byte[] ciphertext;
+        byte[] authTag;
+        byte[] decrypted;
+        int ret;
+
+        try
+        {
+            Console.WriteLine("Starting AES-GCM tests...");
+
+            /* Initialize AES-GCM Context */
+            Console.WriteLine("Testing AES-GCM Initialization...");
+            key = new byte[16]
+            {
+                0x29, 0x8e, 0xfa, 0x1c, 0xcf, 0x29, 0xcf, 0x62,
+                0xae, 0x68, 0x24, 0xbf, 0xc1, 0x95, 0x57, 0xfc
+            };
+            iv = new byte[12]
+            {
+                0x6f, 0x58, 0xa9, 0x3f, 0xe1, 0xd2, 0x07, 0xfa,
+                0xe4, 0xed, 0x2f, 0x6d
+            };
+            aes = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)));
+            ret = wolfcrypt.AesGcmInit(aes, key, iv);
+            if (ret != 0)
+            {
+                throw new Exception($"AesGcmInit failed with error code {ret}");
+            }
+            Console.WriteLine("AES-GCM Initialization test passed.");
+
+            /* Set AES-GCM Key */
+            Console.WriteLine("Testing AES-GCM Key Setting...");
+            ret = wolfcrypt.AesGcmSetKey(aes, key);
+            if (ret != 0)
+            {
+                throw new Exception($"AesGcmSetKey failed with error code {ret}");
+            }
+            Console.WriteLine("AES-GCM Key Setting test passed.");
+
+            /* Encryption */
+            Console.WriteLine("Testing AES-GCM Encryption...");
+            plaintext = System.Text.Encoding.UTF8.GetBytes("This is some data to encrypt");
+            ciphertext = new byte[plaintext.Length];
+            authTag = new byte[wolfcrypt.AES_128_KEY_SIZE];
+
+            ret = wolfcrypt.AesGcmEncrypt(aes, iv, plaintext, ciphertext, authTag);
+            if (ret != 0)
+            {
+                throw new Exception($"AesGcmEncrypt failed with error code {ret}");
+            }
+
+            Console.WriteLine($"AES-GCM Encryption test passed. Ciphertext Length: {ciphertext.Length}");
+
+            /* Decryption */
+            Console.WriteLine("Testing AES-GCM Decryption...");
+            decrypted = new byte[plaintext.Length];
+
+            ret = wolfcrypt.AesGcmDecrypt(aes, iv, ciphertext, decrypted, authTag);
+            if (ret != 0)
+            {
+                throw new Exception($"AesGcmDecrypt failed with error code {ret}");
+            }
+
+            /* Verify Decryption */
+            if (!plaintext.SequenceEqual(decrypted))
+            {
+                throw new Exception("Decryption failed: decrypted data does not match original plaintext.");
+            }
+
+            Console.WriteLine("AES-GCM Decryption test passed.");
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AES-GCM test failed: {ex.Message}");
+        }
+        finally
+        {
+            /* Cleanup */
+            if (aes != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(aes);
+            }
+            Console.WriteLine("AES-GCM test completed successfully.\n");
+        }
+    } /* END aes_gcm_test */
+
     public static void standard_log(int lvl, StringBuilder msg)
     {
         Console.WriteLine(msg);
@@ -453,6 +546,8 @@ public class wolfCrypt_Test_CSharp
             ed25519_test(); /* ED25519 test */
 
             curve25519_test(); /* curve25519 test */
+
+            aes_gcm_test(); /* AES_GCM test */
 
             wolfcrypt.Cleanup();
 

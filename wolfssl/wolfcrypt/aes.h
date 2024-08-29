@@ -397,6 +397,7 @@ struct Aes {
                                * trackable by sanitizers.
                                */
 #endif
+unsigned int isAllocated:1; /* flag indicates if structure was allocated */
 };
 
 #ifndef WC_AES_TYPE_DEFINED
@@ -725,6 +726,7 @@ WOLFSSL_API int  wc_AesInit_Id(Aes* aes, unsigned char* id, int len, void* heap,
 WOLFSSL_API int  wc_AesInit_Label(Aes* aes, const char* label, void* heap,
         int devId);
 #endif
+WOLFSSL_API Aes* wc_AesGcmNew(void* heap);
 WOLFSSL_API void wc_AesFree(Aes* aes);
 
 #ifdef WOLFSSL_AES_SIV
