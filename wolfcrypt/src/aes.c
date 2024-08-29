@@ -11135,7 +11135,7 @@ int wc_AesCcmEncrypt_ex(Aes* aes, byte* out, const byte* in, word32 sz,
 
 #endif /* HAVE_AESCCM */
 
-Aes* wc_AesGcmNew(void* heap, int devId)
+Aes* wc_AesNew(void* heap, int devId)
 {
     Aes* aes = (Aes*)XMALLOC(sizeof(Aes), heap, DYNAMIC_TYPE_AES);
     if (aes != NULL) {
@@ -11283,8 +11283,16 @@ int wc_AesInit_Label(Aes* aes, const char* label, void* heap, int devId)
 /* Free Aes from use with async hardware */
 void wc_AesFree(Aes* aes)
 {
-    if (aes == NULL)
+    int ret = 0;
+    int isAllocated = 0;
+    void* heap;
+
+    if (aes == NULL) {
         return;
+    }
+
+    isAllocated = aes->isAllocated;
+    heap = aes->heap;
 
 #ifdef WC_DEBUG_CIPHER_LIFECYCLE
     (void)wc_debug_CipherLifecycleFree(&aes->CipherLifecycleTag, aes->heap, 1);
@@ -11353,8 +11361,7 @@ void wc_AesFree(Aes* aes)
     wc_MemZero_Check(aes, sizeof(Aes));
 #endif
 
-    if (aes->isAllocated) {
-        void* heap = aes->heap;
+    if (isAllocated) {
         XFREE(aes, heap, DYNAMIC_TYPE_RSA);
         (void)heap;
     }
