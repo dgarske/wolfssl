@@ -169,7 +169,7 @@ namespace wolfSSL.CSharp
         private extern static int wc_curve25519_make_key(IntPtr rng, int keysize, IntPtr key);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_curve25519_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
-        
+
         /* ASN.1 DER format */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private static extern int wc_Curve25519PrivateKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
@@ -201,19 +201,19 @@ namespace wolfSSL.CSharp
          * AES-GCM
          */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_AesGcmNew(IntPtr heap, int devId);
-        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_AesGcmInit(IntPtr aes, IntPtr key, uint len, IntPtr iv, uint ivSz);
+        private extern static IntPtr wc_AesNew(IntPtr heap, int devId);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_AesFree(IntPtr aes);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_AesInit(IntPtr aes, IntPtr key, uint len);
+        private extern static int wc_AesInit(IntPtr aes, IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmInit(IntPtr aes, IntPtr key, uint len, IntPtr iv, uint ivSz);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_AesGcmSetKey(IntPtr aes, IntPtr key, uint len);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_AesGcmEncrypt(IntPtr aes, byte[] output, byte[] input, uint sz, byte[] iv, uint ivSz, byte[] authTag, uint authTagSz, byte[] authIn, uint authInSz);
+        private extern static int wc_AesGcmEncrypt(IntPtr aes, IntPtr output, IntPtr input, uint sz, IntPtr iv, uint ivSz, IntPtr authTag, uint authTagSz, IntPtr authIn, uint authInSz);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_AesGcmDecrypt(IntPtr aes, byte[] output, byte[] input, uint sz, byte[] iv, uint ivSz, byte[] authTag, uint authTagSz, byte[] authIn, uint authInSz);
+        private extern static int wc_AesGcmDecrypt(IntPtr aes, IntPtr output, IntPtr input, uint sz, IntPtr iv, uint ivSz, IntPtr authTag, uint authTagSz, IntPtr authIn, uint authInSz);
 
 
         /********************************
@@ -1821,7 +1821,7 @@ namespace wolfSSL.CSharp
         public static (byte[] privateKey, byte[] publicKey) Curve25519ExportKeyRaw(IntPtr key)
         {
             byte[] privateKey = new byte[ED25519_KEY_SIZE];
-            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];  
+            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];
             uint privSize = (uint)privateKey.Length;
             uint pubSize = (uint)publicKey.Length;
             int ret = wc_curve25519_export_key_raw(key, privateKey, ref privSize, publicKey, ref pubSize);
@@ -1839,39 +1839,39 @@ namespace wolfSSL.CSharp
          **********************************************************************/
 
         /// <summary>
-        /// Initialize AES-GCM context
+        /// Creates a new AES context.
         /// </summary>
-        /// <param name="aes">AES context to be initialized</param>
-        /// <param name="key">AES key</param>
-        /// <returns>0 on success, otherwise an error code</returns>
-        public static int AesInit(IntPtr aes, byte[] key)
+        /// <param name="heap">Pointer to a memory heap, or IntPtr.Zero to use the default heap.</param>
+        /// <param name="devId">The device ID to associate with this AES context.</param>
+        /// <returns>A pointer to the newly created AES context, or IntPtr.Zero on failure.</returns>
+        public static IntPtr AesNew(IntPtr heap, int devId)
         {
-            IntPtr keyPtr = IntPtr.Zero;
-            int ret;
+            IntPtr aesPtr = IntPtr.Zero;
 
             try
             {
-                /* Allocate memory */
-                keyPtr = Marshal.AllocHGlobal(AES_128_KEY_SIZE);
-                Marshal.Copy(key, 0, keyPtr, AES_128_KEY_SIZE);
+                aesPtr = wc_AesNew(heap, devId);
 
-                ret = wc_AesInit(aes, keyPtr, (uint)AES_128_KEY_SIZE);
+                if (aesPtr == IntPtr.Zero)
+                {
+                    throw new Exception("Failed to create AES context.");
+                }
+
             }
-            finally
+            catch (Exception e)
             {
-                /* Cleanup */
-                if (keyPtr != IntPtr.Zero) Marshal.FreeHGlobal(keyPtr);
+                Console.WriteLine($"AES context creation failed: {e.Message}");
             }
-
-            return ret;
+            return aesPtr;
         }
 
         /// <summary>
-        /// Set the AES key in an existing AES-GCM context.
+        /// Initialize and set the AES key for AES-GCM operations.
         /// </summary>
-        /// <param name="aes">Pointer to the initialized AES-GCM context. </param>
-        /// <param name="key">Pointer to the AES key to be set in the context.</param>
-        /// <returns>0 on success, or an error code on failure.</returns>
+        /// <param name="aes">AES-GCM context pointer.</param>
+        /// <param name="key">The AES key (either 128, 192, or 256 bits).</param>
+        /// <param name="len">The size of the AES key in bytes (16, 24, or 32).</param>
+        /// <returns>0 on success, otherwise an error code.</returns>
         public static int AesGcmSetKey(IntPtr aes, byte[] key)
         {
             IntPtr keyPtr = IntPtr.Zero;
@@ -1880,10 +1880,14 @@ namespace wolfSSL.CSharp
             try
             {
                 /* Allocate memory */
-                keyPtr = Marshal.AllocHGlobal(AES_128_KEY_SIZE);
-                Marshal.Copy(key, 0, keyPtr, AES_128_KEY_SIZE);
+                keyPtr = Marshal.AllocHGlobal(key.Length);
+                Marshal.Copy(key, 0, keyPtr, key.Length);
 
-                ret = wc_AesGcmSetKey(aes, keyPtr, (uint)AES_128_KEY_SIZE);
+                ret = wc_AesGcmSetKey(aes, keyPtr, (uint)key.Length);
+                if (ret != 0)
+                {
+                    throw new Exception($"AES-GCM initialization failed with error code {ret}");
+                }
             }
             finally
             {
@@ -1941,27 +1945,44 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int AesGcmEncrypt(IntPtr aes, byte[] iv, byte[] plaintext, byte[] ciphertext, byte[] authTag)
         {
-            uint ivSz = (uint)iv.Length;
-            uint authTagSz = (uint)authTag.Length;
-            uint plaintextSz = (uint)plaintext.Length;
-            int ret;
+            /* Allocate memory */
+            IntPtr ivPtr = Marshal.AllocHGlobal(iv.Length);
+            IntPtr plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
+            IntPtr ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
+            IntPtr authTagPtr = Marshal.AllocHGlobal(authTag.Length);
 
             try
             {
-                ret = wc_AesGcmEncrypt(aes, ciphertext, plaintext, plaintextSz, iv, ivSz, authTag, authTagSz, null, 0);
+                Marshal.Copy(iv, 0, ivPtr, iv.Length);
+                Marshal.Copy(plaintext, 0, plaintextPtr, plaintext.Length);
+
+                /* Encrypt data */
+                int ret = wc_AesGcmEncrypt(aes, ciphertextPtr, plaintextPtr, (uint)plaintext.Length, ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, IntPtr.Zero, 0);
+
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to Encrypt data using AES-GCM. Error code: " + ret);
                     return ret;
                 }
+
+                Marshal.Copy(ciphertextPtr, ciphertext, 0, ciphertext.Length);
+                Marshal.Copy(authTagPtr, authTag, 0, authTag.Length);
+
+                return 0;
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "AES-GCM Encryption failed: " + e.ToString());
                 return EXCEPTION_E;
             }
-
-            return ret;
+            finally
+            {
+                /* Cleanup */
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+            }
         }
 
         /// <summary>
@@ -1975,27 +1996,44 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int AesGcmDecrypt(IntPtr aes, byte[] iv, byte[] ciphertext, byte[] plaintext, byte[] authTag)
         {
-            uint ivSz = (uint)iv.Length;
-            uint authTagSz = (uint)authTag.Length;
-            uint plaintextSz = (uint)ciphertext.Length;
-            int ret;
+            /* Allocate memory */
+            IntPtr ivPtr = Marshal.AllocHGlobal(iv.Length);
+            IntPtr ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
+            IntPtr plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
+            IntPtr authTagPtr = Marshal.AllocHGlobal(authTag.Length);
 
             try
             {
-                ret = wc_AesGcmDecrypt(aes, plaintext, ciphertext, plaintextSz, iv, ivSz, authTag, authTagSz, null, 0);
+                Marshal.Copy(iv, 0, ivPtr, iv.Length);
+                Marshal.Copy(ciphertext, 0, ciphertextPtr, ciphertext.Length);
+                Marshal.Copy(authTag, 0, authTagPtr, authTag.Length);
+
+                /* Decrypt data */
+                int ret = wc_AesGcmDecrypt(aes, plaintextPtr, ciphertextPtr, (uint)ciphertext.Length, ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, IntPtr.Zero, 0);
+
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to Decrypt data using AES-GCM. Error code: " + ret);
                     return ret;
                 }
+
+                Marshal.Copy(plaintextPtr, plaintext, 0, plaintext.Length);
+
+                return 0;
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "AES-GCM Decryption failed: " + e.ToString());
                 return EXCEPTION_E;
             }
-
-            return ret;
+            finally
+            {
+                /* Cleanup */
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+            }
         }
 
         /// <summary>

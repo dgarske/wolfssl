@@ -415,7 +415,7 @@ public class wolfCrypt_Test_CSharp
         }
         else
         {
-            Console.WriteLine("Curve25519 shared secret match.");
+            Console.WriteLine("Curve25519 shared secret match.\n");
         }
 
         /* Cleanup */
@@ -432,6 +432,7 @@ public class wolfCrypt_Test_CSharp
         byte[] iv;
         byte[] plaintext;
         byte[] ciphertext;
+        byte[] addAuth;
         byte[] authTag;
         byte[] decrypted;
         int ret;
@@ -440,28 +441,76 @@ public class wolfCrypt_Test_CSharp
         {
             Console.WriteLine("Starting AES-GCM tests...");
 
+            IntPtr heap = IntPtr.Zero;
+            int devId = wolfcrypt.INVALID_DEVID;
+
             /* Initialize AES-GCM Context */
             Console.WriteLine("Testing AES-GCM Initialization...");
-            key = new byte[16]
+
+            /*
+             * This is from the Test Case 16 from the document Galois/
+             * Counter Mode of Operation (GCM) by McGrew and
+             * Viega.
+             */
+
+            key = new byte[32]
             {
-                0x29, 0x8e, 0xfa, 0x1c, 0xcf, 0x29, 0xcf, 0x62,
-                0xae, 0x68, 0x24, 0xbf, 0xc1, 0x95, 0x57, 0xfc
+                0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+                0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08,
+                0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c,
+                0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08
             };
+
             iv = new byte[12]
             {
-                0x6f, 0x58, 0xa9, 0x3f, 0xe1, 0xd2, 0x07, 0xfa,
-                0xe4, 0xed, 0x2f, 0x6d
+                0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad,
+                0xde, 0xca, 0xf8, 0x88
             };
-            aes = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(IntPtr)));
-            ret = wolfcrypt.AesGcmInit(aes, key, iv);
-            if (ret != 0)
+
+            plaintext = new byte[]
             {
-                throw new Exception($"AesGcmInit failed with error code {ret}");
+                0xd9, 0x31, 0x32, 0x25, 0xf8, 0x84, 0x06, 0xe5,
+                0xa5, 0x59, 0x09, 0xc5, 0xaf, 0xf5, 0x26, 0x9a,
+                0x86, 0xa7, 0xa9, 0x53, 0x15, 0x34, 0xf7, 0xda,
+                0x2e, 0x4c, 0x30, 0x3d, 0x8a, 0x31, 0x8a, 0x72,
+                0x1c, 0x3c, 0x0c, 0x95, 0x95, 0x68, 0x09, 0x53,
+                0x2f, 0xcf, 0x0e, 0x24, 0x49, 0xa6, 0xb5, 0x25,
+                0xb1, 0x6a, 0xed, 0xf5, 0xaa, 0x0d, 0xe6, 0x57,
+                0xba, 0x63, 0x7b, 0x39
+            };
+
+
+            ciphertext = new byte[]
+            {
+                0x52, 0x2d, 0xc1, 0xf0, 0x99, 0x56, 0x7d, 0x07,
+                0xf4, 0x7f, 0x37, 0xa3, 0x2a, 0x84, 0x42, 0x7d,
+                0x64, 0x3a, 0x8c, 0xdc, 0xbf, 0xe5, 0xc0, 0xc9,
+                0x75, 0x98, 0xa2, 0xbd, 0x25, 0x55, 0xd1, 0xaa,
+                0x8c, 0xb0, 0x8e, 0x48, 0x59, 0x0d, 0xbb, 0x3d,
+                0xa7, 0xb0, 0x8b, 0x10, 0x56, 0x82, 0x88, 0x38,
+                0xc5, 0xf6, 0x1e, 0x63, 0x93, 0xba, 0x7a, 0x0a,
+                0xbc, 0xc9, 0xf6, 0x62
+            };
+
+            addAuth = new byte[]
+            {
+                0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef,
+                0xfe, 0xed, 0xfa, 0xce, 0xde, 0xad, 0xbe, 0xef,
+                0xab, 0xad, 0xda, 0xd2
+            };
+
+            authTag = new byte[16];
+
+            aes = wolfcrypt.AesNew(heap, devId);
+            if (aes == IntPtr.Zero)
+            {
+                throw new Exception($"AesNew failed with error code {aes}");
             }
-            Console.WriteLine("AES-GCM Initialization test passed.");
+            Console.WriteLine("AesNew test passed.");
 
             /* Set AES-GCM Key */
             Console.WriteLine("Testing AES-GCM Key Setting...");
+            uint len = (uint)key.Length;
             ret = wolfcrypt.AesGcmSetKey(aes, key);
             if (ret != 0)
             {
@@ -471,10 +520,6 @@ public class wolfCrypt_Test_CSharp
 
             /* Encryption */
             Console.WriteLine("Testing AES-GCM Encryption...");
-            plaintext = System.Text.Encoding.UTF8.GetBytes("This is some data to encrypt");
-            ciphertext = new byte[plaintext.Length];
-            authTag = new byte[wolfcrypt.AES_128_KEY_SIZE];
-
             ret = wolfcrypt.AesGcmEncrypt(aes, iv, plaintext, ciphertext, authTag);
             if (ret != 0)
             {
@@ -498,8 +543,7 @@ public class wolfCrypt_Test_CSharp
             {
                 throw new Exception("Decryption failed: decrypted data does not match original plaintext.");
             }
-
-            Console.WriteLine("AES-GCM Decryption test passed.");
+            Console.WriteLine("AES-GCM Decryption test passed.\n");
 
         }
         catch (Exception ex)
@@ -511,11 +555,10 @@ public class wolfCrypt_Test_CSharp
             /* Cleanup */
             if (aes != IntPtr.Zero)
             {
-                Marshal.FreeHGlobal(aes);
+                wolfcrypt.AesGcmFree(aes);
             }
-            Console.WriteLine("AES-GCM test completed successfully.\n");
         }
-    } /* END aes_gcm_test */
+    }
 
     public static void standard_log(int lvl, StringBuilder msg)
     {
