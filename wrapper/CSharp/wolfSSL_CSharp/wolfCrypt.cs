@@ -169,7 +169,7 @@ namespace wolfSSL.CSharp
         private extern static int wc_curve25519_make_key(IntPtr rng, int keysize, IntPtr key);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_curve25519_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
-
+        
         /* ASN.1 DER format */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private static extern int wc_Curve25519PrivateKeyDecode(byte[] input, ref uint inOutIdx, IntPtr key, uint inSz);
@@ -198,18 +198,30 @@ namespace wolfSSL.CSharp
 
 
         /********************************
+         * AES-GCM
+         */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmNew(IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmInit(IntPtr aes, IntPtr key, uint len, IntPtr iv, uint ivSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesFree(IntPtr aes);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesInit(IntPtr aes, IntPtr key, uint len);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmSetKey(IntPtr aes, IntPtr key, uint len);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmEncrypt(IntPtr aes, byte[] output, byte[] input, uint sz, byte[] iv, uint ivSz, byte[] authTag, uint authTagSz, byte[] authIn, uint authInSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_AesGcmDecrypt(IntPtr aes, byte[] output, byte[] input, uint sz, byte[] iv, uint ivSz, byte[] authTag, uint authTagSz, byte[] authIn, uint authInSz);
+
+
+        /********************************
          * HASH
          */
 
         /* Specifically need SHA2-256, SHA2-384 and SHA3: */
         /* wc_HashInit, wc_HashUpdate, wc_HashFinal, wc_HashFree */
-
-
-        /********************************
-         * AES-GCM
-         */
-
-        /* wc_AesGcmSetKey, wc_AesGcmEncrypt and wc_AesGcmDecrypt */
 
 
         /********************************
@@ -259,6 +271,9 @@ namespace wolfSSL.CSharp
         public static readonly int ED25519_SIG_SIZE = 64;     /* ED25519 pub + priv  */
         public static readonly int ED25519_KEY_SIZE = 32;     /* Private key only */
         public static readonly int ED25519_PUB_KEY_SIZE = 32; /* Compressed public */
+        public static readonly int AES_128_KEY_SIZE = 16;     /* for 128 bit */
+        public static readonly int AES_192_KEY_SIZE = 24;     /* for 192 bit */
+        public static readonly int AES_256_KEY_SIZE = 32;     /* for 256 bit */
 
         /* Error codes */
 
@@ -1298,7 +1313,7 @@ namespace wolfSSL.CSharp
             key = IntPtr.Zero;
             try
             {
-                key = Marshal.AllocHGlobal(64);
+                key = Marshal.AllocHGlobal(ED25519_SIG_SIZE);
                 int result = wc_ed25519_init(key);
 
                 if (result != 0)
@@ -1806,7 +1821,7 @@ namespace wolfSSL.CSharp
         public static (byte[] privateKey, byte[] publicKey) Curve25519ExportKeyRaw(IntPtr key)
         {
             byte[] privateKey = new byte[ED25519_KEY_SIZE];
-            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];
+            byte[] publicKey = new byte[ED25519_PUB_KEY_SIZE];  
             uint privSize = (uint)privateKey.Length;
             uint pubSize = (uint)publicKey.Length;
             int ret = wc_curve25519_export_key_raw(key, privateKey, ref privSize, publicKey, ref pubSize);
@@ -1817,6 +1832,184 @@ namespace wolfSSL.CSharp
             return (privateKey, publicKey);
         }
         /* END RAW Curve25519 */
+
+
+        /***********************************************************************
+         * AES-GCM
+         **********************************************************************/
+
+        /// <summary>
+        /// Initialize AES-GCM context
+        /// </summary>
+        /// <param name="aes">AES context to be initialized</param>
+        /// <param name="key">AES key</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int AesInit(IntPtr aes, byte[] key)
+        {
+            IntPtr keyPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                keyPtr = Marshal.AllocHGlobal(AES_128_KEY_SIZE);
+                Marshal.Copy(key, 0, keyPtr, AES_128_KEY_SIZE);
+
+                ret = wc_AesInit(aes, keyPtr, (uint)AES_128_KEY_SIZE);
+            }
+            finally
+            {
+                /* Cleanup */
+                if (keyPtr != IntPtr.Zero) Marshal.FreeHGlobal(keyPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Set the AES key in an existing AES-GCM context.
+        /// </summary>
+        /// <param name="aes">Pointer to the initialized AES-GCM context. </param>
+        /// <param name="key">Pointer to the AES key to be set in the context.</param>
+        /// <returns>0 on success, or an error code on failure.</returns>
+        public static int AesGcmSetKey(IntPtr aes, byte[] key)
+        {
+            IntPtr keyPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                keyPtr = Marshal.AllocHGlobal(AES_128_KEY_SIZE);
+                Marshal.Copy(key, 0, keyPtr, AES_128_KEY_SIZE);
+
+                ret = wc_AesGcmSetKey(aes, keyPtr, (uint)AES_128_KEY_SIZE);
+            }
+            finally
+            {
+                /* Cleanup */
+                if (keyPtr != IntPtr.Zero) Marshal.FreeHGlobal(keyPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Wrapper method to initialize the AES-GCM context with a given key and IV.
+        /// </summary>
+        /// <param name="aes">Pointer to the AES-GCM context that needs to be initialized.</param>
+        /// <param name="key">Byte array containing the AES key.</param>
+        /// <param name="iv">Byte array containing the initialization vector (IV).</param>
+        public static int AesGcmInit(IntPtr aes, byte[] key, byte[] iv)
+        {
+            IntPtr keyPtr = IntPtr.Zero;
+            IntPtr ivPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                /* Allocate memory for key and IV */
+                keyPtr = Marshal.AllocHGlobal(key.Length);
+                Marshal.Copy(key, 0, keyPtr, key.Length);
+
+                ivPtr = Marshal.AllocHGlobal(iv.Length);
+                Marshal.Copy(iv, 0, ivPtr, iv.Length);
+
+                ret = wc_AesGcmInit(aes, keyPtr, (uint)key.Length, ivPtr, (uint)iv.Length);
+                if (ret != 0)
+                {
+                    throw new Exception($"AES-GCM initialization failed with error code {ret}");
+                }
+            }
+            finally
+            {
+                /* Cleanup */
+                if (keyPtr != IntPtr.Zero) Marshal.FreeHGlobal(keyPtr);
+                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// Encrypt data using AES-GCM
+        /// </summary>
+        /// <param name="aes">AES-GCM context pointer.</param>
+        /// <param name="iv">Initialization Vector (IV)</param>
+        /// <param name="plaintext">Data to encrypt</param>
+        /// <param name="ciphertext">Buffer to receive the encrypted data</param>
+        /// <param name="authTag">Buffer to receive the authentication tag</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int AesGcmEncrypt(IntPtr aes, byte[] iv, byte[] plaintext, byte[] ciphertext, byte[] authTag)
+        {
+            uint ivSz = (uint)iv.Length;
+            uint authTagSz = (uint)authTag.Length;
+            uint plaintextSz = (uint)plaintext.Length;
+            int ret;
+
+            try
+            {
+                ret = wc_AesGcmEncrypt(aes, ciphertext, plaintext, plaintextSz, iv, ivSz, authTag, authTagSz, null, 0);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to Encrypt data using AES-GCM. Error code: " + ret);
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "AES-GCM Encryption failed: " + e.ToString());
+                return EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Decrypt data using AES-GCM
+        /// </summary>
+        /// <param name="aes">AES-GCM context pointer.</param>
+        /// <param name="iv">Initialization Vector (IV)</param>
+        /// <param name="ciphertext">Data to decrypt</param>
+        /// <param name="plaintext">Buffer to receive the decrypted data</param>
+        /// <param name="authTag">Authentication tag for verification</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int AesGcmDecrypt(IntPtr aes, byte[] iv, byte[] ciphertext, byte[] plaintext, byte[] authTag)
+        {
+            uint ivSz = (uint)iv.Length;
+            uint authTagSz = (uint)authTag.Length;
+            uint plaintextSz = (uint)ciphertext.Length;
+            int ret;
+
+            try
+            {
+                ret = wc_AesGcmDecrypt(aes, plaintext, ciphertext, plaintextSz, iv, ivSz, authTag, authTagSz, null, 0);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to Decrypt data using AES-GCM. Error code: " + ret);
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "AES-GCM Decryption failed: " + e.ToString());
+                return EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Free AES-GCM context
+        /// </summary>
+        /// <param name="aes">AES-GCM context</param>
+        public static void AesGcmFree(IntPtr aes)
+        {
+            if (aes != IntPtr.Zero)
+            {
+                wc_AesFree(aes);
+            }
+        }
+        /* END AES-GCM */
 
 
         /***********************************************************************
