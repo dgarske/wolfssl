@@ -1943,46 +1943,61 @@ namespace wolfSSL.CSharp
         /// <param name="ciphertext">Buffer to receive the encrypted data</param>
         /// <param name="authTag">Buffer to receive the authentication tag</param>
         /// <returns>0 on success, otherwise an error code</returns>
-        public static int AesGcmEncrypt(IntPtr aes, byte[] iv, byte[] plaintext, byte[] ciphertext, byte[] authTag)
+        public static int AesGcmEncrypt(IntPtr aes, byte[] iv, byte[] plaintext,
+            byte[] ciphertext, byte[] authTag, byte[] addAuth = null)
         {
-            /* Allocate memory */
-            IntPtr ivPtr = Marshal.AllocHGlobal(iv.Length);
-            IntPtr plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
-            IntPtr ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
-            IntPtr authTagPtr = Marshal.AllocHGlobal(authTag.Length);
+            int ret;
+            IntPtr ivPtr = IntPtr.Zero;
+            IntPtr ciphertextPtr = IntPtr.Zero;
+            IntPtr plaintextPtr = IntPtr.Zero;
+            IntPtr authTagPtr = IntPtr.Zero;
+            IntPtr addAuthPtr = IntPtr.Zero;
+            uint addAuthSz = 0;
 
             try
             {
+                /* Allocate memory */
+                ivPtr = Marshal.AllocHGlobal(iv.Length);
+                ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
+                plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
+                authTagPtr = Marshal.AllocHGlobal(authTag.Length);
+                if (addAuth != null) {
+                    addAuthSz = (uint)addAuth.Length;
+                    addAuthPtr = Marshal.AllocHGlobal(addAuth.Length);
+                    Marshal.Copy(addAuth, 0, addAuthPtr, addAuth.Length);
+                }
+
                 Marshal.Copy(iv, 0, ivPtr, iv.Length);
                 Marshal.Copy(plaintext, 0, plaintextPtr, plaintext.Length);
 
                 /* Encrypt data */
-                int ret = wc_AesGcmEncrypt(aes, ciphertextPtr, plaintextPtr, (uint)plaintext.Length, ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, IntPtr.Zero, 0);
-
+                ret = wc_AesGcmEncrypt(aes, ciphertextPtr, plaintextPtr, (uint)plaintext.Length,
+                    ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, addAuthPtr, addAuthSz);
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to Encrypt data using AES-GCM. Error code: " + ret);
-                    return ret;
                 }
-
-                Marshal.Copy(ciphertextPtr, ciphertext, 0, ciphertext.Length);
-                Marshal.Copy(authTagPtr, authTag, 0, authTag.Length);
-
-                return 0;
+                else {
+                    Marshal.Copy(ciphertextPtr, ciphertext, 0, ciphertext.Length);
+                    Marshal.Copy(authTagPtr, authTag, 0, authTag.Length);
+                    ret = 0;
+                }
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "AES-GCM Encryption failed: " + e.ToString());
-                return EXCEPTION_E;
+                ret = EXCEPTION_E;
             }
             finally
             {
                 /* Cleanup */
                 if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+                if (ciphertextPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
+                if (plaintextPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
+                if (authTagPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+                if (addAuthPtr != IntPtr.Zero) Marshal.FreeHGlobal(addAuthPtr);
             }
+            return ret;
         }
 
         /// <summary>
@@ -1994,46 +2009,61 @@ namespace wolfSSL.CSharp
         /// <param name="plaintext">Buffer to receive the decrypted data</param>
         /// <param name="authTag">Authentication tag for verification</param>
         /// <returns>0 on success, otherwise an error code</returns>
-        public static int AesGcmDecrypt(IntPtr aes, byte[] iv, byte[] ciphertext, byte[] plaintext, byte[] authTag)
+        public static int AesGcmDecrypt(IntPtr aes, byte[] iv, byte[] ciphertext,
+            byte[] plaintext, byte[] authTag, byte[] addAuth = null)
         {
-            /* Allocate memory */
-            IntPtr ivPtr = Marshal.AllocHGlobal(iv.Length);
-            IntPtr ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
-            IntPtr plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
-            IntPtr authTagPtr = Marshal.AllocHGlobal(authTag.Length);
+            int ret;
+            IntPtr ivPtr = IntPtr.Zero;
+            IntPtr ciphertextPtr = IntPtr.Zero;
+            IntPtr plaintextPtr = IntPtr.Zero;
+            IntPtr authTagPtr = IntPtr.Zero;
+            IntPtr addAuthPtr = IntPtr.Zero;
+            uint addAuthSz = 0;
 
             try
             {
+                /* Allocate memory */
+                ivPtr = Marshal.AllocHGlobal(iv.Length);
+                ciphertextPtr = Marshal.AllocHGlobal(ciphertext.Length);
+                plaintextPtr = Marshal.AllocHGlobal(plaintext.Length);
+                authTagPtr = Marshal.AllocHGlobal(authTag.Length);
+                if (addAuth != null) {
+                    addAuthSz = (uint)addAuth.Length;
+                    addAuthPtr = Marshal.AllocHGlobal(addAuth.Length);
+                    Marshal.Copy(addAuth, 0, addAuthPtr, addAuth.Length);
+                }
+
                 Marshal.Copy(iv, 0, ivPtr, iv.Length);
                 Marshal.Copy(ciphertext, 0, ciphertextPtr, ciphertext.Length);
                 Marshal.Copy(authTag, 0, authTagPtr, authTag.Length);
 
                 /* Decrypt data */
-                int ret = wc_AesGcmDecrypt(aes, plaintextPtr, ciphertextPtr, (uint)ciphertext.Length, ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, IntPtr.Zero, 0);
-
+                ret = wc_AesGcmDecrypt(aes, plaintextPtr, ciphertextPtr, (uint)ciphertext.Length,
+                    ivPtr, (uint)iv.Length, authTagPtr, (uint)authTag.Length, addAuthPtr, addAuthSz);
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to Decrypt data using AES-GCM. Error code: " + ret);
-                    return ret;
                 }
-
-                Marshal.Copy(plaintextPtr, plaintext, 0, plaintext.Length);
-
-                return 0;
+                else {
+                    Marshal.Copy(plaintextPtr, plaintext, 0, plaintext.Length);
+                    ret = 0;
+                }
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "AES-GCM Decryption failed: " + e.ToString());
-                return EXCEPTION_E;
+                ret = EXCEPTION_E;
             }
             finally
             {
                 /* Cleanup */
                 if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
-                if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+                if (ciphertextPtr != IntPtr.Zero) Marshal.FreeHGlobal(ciphertextPtr);
+                if (plaintextPtr != IntPtr.Zero) Marshal.FreeHGlobal(plaintextPtr);
+                if (authTagPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
+                if (addAuthPtr != IntPtr.Zero) Marshal.FreeHGlobal(addAuthPtr);
             }
+            return ret;
         }
 
         /// <summary>

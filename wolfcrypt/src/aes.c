@@ -11283,7 +11283,6 @@ int wc_AesInit_Label(Aes* aes, const char* label, void* heap, int devId)
 /* Free Aes from use with async hardware */
 void wc_AesFree(Aes* aes)
 {
-    int ret = 0;
     int isAllocated = 0;
     void* heap;
 
