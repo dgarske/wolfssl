@@ -3,7 +3,7 @@
 This directory contains the CSharp wrapper for the wolfSSL TLS layer with examples.
 
 * `wolfSSL_CSharp`: wolfSSL TLS layer wrappers (library)
-* `wolfCrypt-Test`: wolfSSL TLS layer wrapper testing.
+* `wolfCrypt-Test`: wolfCrype layer wrapper testing.
 
 Examples:
 * `wolfSSL-DTLS-PSK-Server`
@@ -46,7 +46,7 @@ apt-get install mono-complete
 
 ```
 ./autogen.sh
-./configure --enable-wolftpm
+./configure --enable-keygen --enable-ed25519 --enable-curve25519 --enable-aesgcm
 make
 make check
 sudo make install

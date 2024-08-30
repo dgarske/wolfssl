@@ -520,7 +520,7 @@ public class wolfCrypt_Test_CSharp
 
             /* Encryption */
             Console.WriteLine("Testing AES-GCM Encryption...");
-            ret = wolfcrypt.AesGcmEncrypt(aes, iv, plaintext, ciphertext, authTag);
+            ret = wolfcrypt.AesGcmEncrypt(aes, iv, plaintext, ciphertext, authTag, addAuth);
             if (ret != 0)
             {
                 throw new Exception($"AesGcmEncrypt failed with error code {ret}");
@@ -532,7 +532,7 @@ public class wolfCrypt_Test_CSharp
             Console.WriteLine("Testing AES-GCM Decryption...");
             decrypted = new byte[plaintext.Length];
 
-            ret = wolfcrypt.AesGcmDecrypt(aes, iv, ciphertext, decrypted, authTag);
+            ret = wolfcrypt.AesGcmDecrypt(aes, iv, ciphertext, decrypted, authTag, addAuth);
             if (ret != 0)
             {
                 throw new Exception($"AesGcmDecrypt failed with error code {ret}");
