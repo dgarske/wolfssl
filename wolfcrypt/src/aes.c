@@ -11158,6 +11158,7 @@ int wc_AesInit(Aes* aes, void* heap, int devId)
     if (aes == NULL)
         return BAD_FUNC_ARG;
 
+    aes->isAllocated = 0;
     aes->heap = heap;
     aes->rounds = 0;
 
