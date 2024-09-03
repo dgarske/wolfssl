@@ -13800,7 +13800,12 @@ static WARN_UNUSED_RESULT int AesSivCipher(
         if (aes == NULL) {
             ret = MEMORY_E;
         }
+        else {
+            XMEMSET(aes, 0, sizeof(Aes));
+        }
     }
+#else
+    XMEMSET(aes, 0, sizeof(Aes));
 #endif
 
     if (ret == 0) {
