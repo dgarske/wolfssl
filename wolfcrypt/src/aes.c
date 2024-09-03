@@ -10378,6 +10378,7 @@ int wc_Gmac(const byte* key, word32 keySz, byte* iv, word32 ivSz,
         if (ret == 0)
             ret = wc_AesGcmEncrypt_ex(aes, NULL, NULL, 0, iv, ivSz,
                                   authTag, authTagSz, authIn, authInSz);
+        aes->isAllocated = 0;
         wc_AesFree(aes);
     }
     ForceZero(aes, sizeof *aes);
@@ -10419,6 +10420,8 @@ int wc_GmacVerify(const byte* key, word32 keySz,
         if (ret == 0)
             ret = wc_AesGcmDecrypt(aes, NULL, NULL, 0, iv, ivSz,
                                   authTag, authTagSz, authIn, authInSz);
+
+        aes->isAllocated = 0;
         wc_AesFree(aes);
     }
     ForceZero(aes, sizeof *aes);
@@ -11284,7 +11287,7 @@ int wc_AesInit_Label(Aes* aes, const char* label, void* heap, int devId)
 /* Free Aes from use with async hardware */
 void wc_AesFree(Aes* aes)
 {
-    int isAllocated = 0;
+    unsigned int isAllocated;
     void* heap;
 
     if (aes == NULL) {
@@ -11362,7 +11365,7 @@ void wc_AesFree(Aes* aes)
 #endif
 
     if (isAllocated) {
-        XFREE(aes, heap, DYNAMIC_TYPE_RSA);
+        XFREE(aes, heap, DYNAMIC_TYPE_AES);
         (void)heap;
     }
 
@@ -13800,12 +13803,7 @@ static WARN_UNUSED_RESULT int AesSivCipher(
         if (aes == NULL) {
             ret = MEMORY_E;
         }
-        else {
-            XMEMSET(aes, 0, sizeof(Aes));
-        }
     }
-#else
-    XMEMSET(aes, 0, sizeof(Aes));
 #endif
 
     if (ret == 0) {
@@ -13844,6 +13842,7 @@ static WARN_UNUSED_RESULT int AesSivCipher(
         }
     }
 
+    aes->isAllocated = 0;
     wc_AesFree(aes);
 #ifdef WOLFSSL_SMALL_STACK
     XFREE(aes, NULL, DYNAMIC_TYPE_AES);
