@@ -4094,7 +4094,7 @@ static int wc_ecc_new_point_ex(ecc_point** point, void* heap)
    #ifndef WOLFSSL_NO_MALLOC
       XFREE(p, heap, DYNAMIC_TYPE_ECC);
    #endif
-      return err;
+      p = NULL;
    }
 #else
    p->x = (mp_int*)&p->xyz[0];

@@ -46848,7 +46848,7 @@ static int test_wolfSSL_ASN1_INTEGER(void)
     ASN1_INTEGER_free(a);
     a = NULL;
 
-    p = longDer;
+    p = invalidLenDer;
     ExpectNull(d2i_ASN1_INTEGER(NULL, &p, sizeof(invalidLenDer)));
 
     p = longDer;
