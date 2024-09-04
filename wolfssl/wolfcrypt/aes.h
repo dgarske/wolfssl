@@ -392,12 +392,12 @@ struct Aes {
     byte         nonceSet:1;
     byte         ctrSet:1;
 #endif
+    byte         isAllocated:1; /* flag indicates if structure was allocated */
 #ifdef WC_DEBUG_CIPHER_LIFECYCLE
     void *CipherLifecycleTag; /* used for dummy allocation and initialization,
                                * trackable by sanitizers.
                                */
 #endif
-    unsigned int isAllocated:1; /* flag indicates if structure was allocated */
 };
 
 #ifndef WC_AES_TYPE_DEFINED
