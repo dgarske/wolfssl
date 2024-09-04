@@ -11288,14 +11288,12 @@ int wc_AesInit_Label(Aes* aes, const char* label, void* heap, int devId)
 void wc_AesFree(Aes* aes)
 {
     unsigned int isAllocated;
-    void* heap;
 
     if (aes == NULL) {
         return;
     }
 
     isAllocated = aes->isAllocated;
-    heap = aes->heap;
 
 #ifdef WC_DEBUG_CIPHER_LIFECYCLE
     (void)wc_debug_CipherLifecycleFree(&aes->CipherLifecycleTag, aes->heap, 1);
@@ -11365,8 +11363,7 @@ void wc_AesFree(Aes* aes)
 #endif
 
     if (isAllocated) {
-        XFREE(aes, heap, DYNAMIC_TYPE_AES);
-        (void)heap;
+        XFREE(aes, aes->heap, DYNAMIC_TYPE_AES);
     }
 
 }
