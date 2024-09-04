@@ -171,7 +171,7 @@ RsaKey* wc_NewRsaKey(void* heap, int devId)
 
 int wc_InitRsaKey_ex(RsaKey* key, void* heap, int devId)
 {
-    int ret      = 0;
+    int ret = 0;
 
     if (key == NULL) {
         return BAD_FUNC_ARG;
