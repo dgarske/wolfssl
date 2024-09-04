@@ -219,6 +219,42 @@ namespace wolfSSL.CSharp
         /********************************
          * HASH
          */
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static IntPtr wc_HashNew(IntPtr heap, int devId);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HashInit(IntPtr hash, wc_HashType type);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HashUpdate(IntPtr hash, wc_HashType type, IntPtr data, uint dataSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HashFinal(IntPtr hash, wc_HashType type, IntPtr output);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HashFree(IntPtr hash, wc_HashType type);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HashGetDigestSize(wc_HashType hash_type);
+
+        /* HASH type enum values */
+        public enum wc_HashType
+        {
+            WC_HASH_TYPE_NONE = 15,
+            WC_HASH_TYPE_MD2 = 16,
+            WC_HASH_TYPE_MD4 = 17,
+            WC_HASH_TYPE_MD5 = 0,
+            WC_HASH_TYPE_SHA = 1, /* SHA-1 (not old SHA-0) */
+            WC_HASH_TYPE_SHA224 = 8,
+            WC_HASH_TYPE_SHA256 = 2,
+            WC_HASH_TYPE_SHA384 = 5,
+            WC_HASH_TYPE_SHA512 = 4,
+            WC_HASH_TYPE_MD5_SHA = 18,
+            WC_HASH_TYPE_SHA3_224 = 10,
+            WC_HASH_TYPE_SHA3_256 = 11,
+            WC_HASH_TYPE_SHA3_384 = 12,
+            WC_HASH_TYPE_SHA3_512 = 13,
+            WC_HASH_TYPE_BLAKE2B = 14,
+            WC_HASH_TYPE_BLAKE2S = 19,
+            WC_HASH_TYPE_MAX = WC_HASH_TYPE_BLAKE2S,
+        }
+
+
 
         /* Specifically need SHA2-256, SHA2-384 and SHA3: */
         /* wc_HashInit, wc_HashUpdate, wc_HashFinal, wc_HashFree */
@@ -2078,6 +2114,172 @@ namespace wolfSSL.CSharp
             }
         }
         /* END AES-GCM */
+
+
+        /***********************************************************************
+         * HASH
+         **********************************************************************/
+
+        /// <summary>
+        /// Allocate and set up a new hash context with proper error handling
+        /// </summary>
+        /// <param name="heap">Pointer to the heap for memory allocation (use IntPtr.Zero if not applicable)</param>
+        /// <param name="devId">Device ID (if applicable, otherwise use INVALID_DEVID)</param>
+        /// <returns>Allocated hash context pointer or IntPtr.Zero on failure</returns>
+        public static IntPtr HashNew(IntPtr heap, int devId)
+        {
+            IntPtr hash = IntPtr.Zero;
+
+            try
+            {
+                hash = wc_HashNew(heap, devId);
+                if (hash == IntPtr.Zero)
+                {
+                    throw new Exception("Failed to allocate new hash context.");
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HashNew Exception: " + e.ToString());
+            }
+            return hash;
+        }
+
+        /// <summary>
+        /// Initialize the hash context for a specific hash type with proper error handling
+        /// </summary>
+        /// <param name="hash">Hash context pointer</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int InitHash(IntPtr hash, wc_HashType hashType)
+        {
+            int ret = -1;
+            try
+            {
+                if (hash == IntPtr.Zero) throw new Exception("Hash context is null.");
+                ret = wc_HashInit(hash, hashType);
+                if (ret != 0)
+                {
+                    throw new Exception($"Failed to initialize hash context. Error code: {ret}");
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "InitHash Exception: " + e.ToString());
+                if (hash != IntPtr.Zero)
+                {
+                    wc_HashFree(hash, hashType);
+                }
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// Update the hash with data
+        /// </summary>
+        /// <param name="hash">Hash context pointer</param>
+        /// <param name="data">Byte array of the data to hash</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int HashUpdate(IntPtr hash, wc_HashType hashType, byte[] data)
+        {
+            int ret = -1;
+            IntPtr dataPtr = IntPtr.Zero;
+
+            try
+            {
+                if (hash == IntPtr.Zero) throw new Exception("Hash context is null.");
+                if (data == null || data.Length == 0) throw new Exception("Invalid data array.");
+
+                dataPtr = Marshal.AllocHGlobal(data.Length);
+                Marshal.Copy(data, 0, dataPtr, data.Length);
+
+                ret = wc_HashUpdate(hash, hashType, dataPtr, (uint)data.Length);
+                if (ret != 0)
+                {
+                    throw new Exception($"Failed to update hash. Error code: {ret}");
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HashUpdate Exception: " + e.ToString());
+            }
+            finally
+            {
+                if (dataPtr != IntPtr.Zero) Marshal.FreeHGlobal(dataPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Finalize the hash and output the result
+        /// </summary>
+        /// <param name="hash">Hash context pointer</param>
+        /// <param name="output">Byte array where the hash output will be stored</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int HashFinal(IntPtr hash, wc_HashType hashType, out byte[] output)
+        {
+            int ret = -1;
+            IntPtr outputPtr = IntPtr.Zero;
+            int hashSize = wc_HashGetDigestSize(hashType);
+            output = new byte[hashSize];
+
+            try
+            {
+                if (hash == IntPtr.Zero) throw new Exception("Hash context is null.");
+                if (hashSize <= 0) throw new Exception("Invalid hash size.");
+
+                outputPtr = Marshal.AllocHGlobal(hashSize);
+
+                ret = wc_HashFinal(hash, hashType, outputPtr);
+                if (ret != 0)
+                {
+                    throw new Exception($"Failed to finalize hash. Error code: {ret}");
+                }
+
+                Marshal.Copy(outputPtr, output, 0, hashSize);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HashFinal Exception: " + e.ToString());
+                output = null;
+            }
+            finally
+            {
+                if (outputPtr != IntPtr.Zero) Marshal.FreeHGlobal(outputPtr);
+            }
+
+            return ret;
+        }
+
+
+        /// <summary>
+        /// Free the allocated hash context with proper error handling
+        /// </summary>
+        /// <param name="hash">Hash context pointer to be freed</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int HashFree(IntPtr hash, wc_HashType hashType)
+        {
+            int ret = -1;
+            try
+            {
+                if (hash == IntPtr.Zero)
+                {
+                    throw new Exception("Hash context is null, cannot free.");
+                }
+
+                ret = wc_HashFree(hash, hashType);
+                if (ret != 0)
+                {
+                    throw new Exception($"Failed to free hash context. Error code: {ret}");
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HashFree Exception: " + e.ToString());
+            }
+            return ret;
+        }
+        /* END HASH */
 
 
         /***********************************************************************
