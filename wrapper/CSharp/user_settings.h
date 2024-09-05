@@ -44,6 +44,7 @@
 #define NO_MULTIBYTE_PRINT
 #define WOLFSSL_KEY_GEN /* RSA key gen */
 #define WOLFSSL_ASN_TEMPLATE /* default */
+#define WOLFSSL_SHA3
 #if 0
     #define OPENSSL_EXTRA
 #endif

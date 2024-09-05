@@ -560,20 +560,23 @@ public class wolfCrypt_Test_CSharp
         }
     } /* END aes_gcm_test */
 
-    private static void hash_test(wolfcrypt.wc_HashType hashType)
+    private static void hash_test(uint hashType)
     {
         IntPtr hash = IntPtr.Zero;
         IntPtr heap = IntPtr.Zero;
         int devId = wolfcrypt.INVALID_DEVID;
 
-        Console.WriteLine($"\nStarting hash test for {hashType}...");
+        /* Get the enum name */
+        string hashTypeName = Enum.GetName(typeof(wolfcrypt.hashType), hashType);
+
+        Console.WriteLine($"\nStarting hash test for {hashTypeName}...");
 
         /* Allocate new hash context */
         Console.WriteLine("Testing hash context allocation...");
-        hash = wolfcrypt.HashNew(heap, devId);
+        hash = wolfcrypt.HashNew(hashType, heap, devId);
         if (hash == IntPtr.Zero)
         {
-            Console.WriteLine($"HashNew failed for {hashType}");
+            Console.WriteLine($"HashNew failed for {hashTypeName}");
             return;
         }
         Console.WriteLine("Hash context allocation test passed.");
@@ -583,7 +586,7 @@ public class wolfCrypt_Test_CSharp
         int initResult = wolfcrypt.InitHash(hash, hashType);
         if (initResult != 0)
         {
-            Console.WriteLine($"InitHash failed for {hashType}");
+            Console.WriteLine($"InitHash failed for {hashTypeName}");
             wolfcrypt.HashFree(hash, hashType);
             return;
         }
@@ -595,7 +598,7 @@ public class wolfCrypt_Test_CSharp
         int updateResult = wolfcrypt.HashUpdate(hash, hashType, dataToHash);
         if (updateResult != 0)
         {
-            Console.WriteLine($"HashUpdate failed for {hashType}");
+            Console.WriteLine($"HashUpdate failed for {hashTypeName}");
             wolfcrypt.HashFree(hash, hashType);
             return;
         }
@@ -612,26 +615,23 @@ public class wolfCrypt_Test_CSharp
             return;
         }
 
-        Console.WriteLine($"Hash finalization test passed for {hashType}. Hash Length: {hashOutput.Length}");
+        Console.WriteLine($"Hash finalization test passed for {hashTypeName}. Hash Length: {hashOutput.Length}");
 
         /* Output the hash result */
-        Console.WriteLine($"Hash Output ({hashType}): {BitConverter.ToString(hashOutput).Replace("-", "")}");
+        Console.WriteLine($"Hash Output ({hashTypeName}): {BitConverter.ToString(hashOutput).Replace("-", "")}");
 
         /* Cleanup */
         Console.WriteLine("Testing hash cleanup...");
         int freeResult = wolfcrypt.HashFree(hash, hashType);
         if (freeResult != 0)
         {
-            Console.WriteLine($"HashFree failed for {hashType}");
+            Console.WriteLine($"HashFree failed for {hashTypeName}");
         }
         else
         {
             Console.WriteLine("Hash cleanup test passed.");
         }
-    }
-
-
-
+    } /* END hash_test */
 
     public static void standard_log(int lvl, StringBuilder msg)
     {
@@ -665,13 +665,14 @@ public class wolfCrypt_Test_CSharp
 
             aes_gcm_test(); /* AES_GCM test */
 
-            hash_test(wolfcrypt.wc_HashType.WC_HASH_TYPE_SHA256); /* HASH test */
-            hash_test(wolfcrypt.wc_HashType.WC_HASH_TYPE_SHA512); /* HASH test */
-            hash_test(wolfcrypt.wc_HashType.WC_HASH_TYPE_SHA3_256); /* HASH test */
+            hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA256); /* SHA-256 HASH test */
+            hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA384); /* SHA-384 HASH test */
+            hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA512); /* SHA-512 HASH test */
+            hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA3_256); /* SHA3_256 HASH test */
 
             wolfcrypt.Cleanup();
 
-            Console.WriteLine("All tests completed successfully.\n");
+            Console.WriteLine("\nAll tests completed successfully");
         }
         catch (Exception ex)
         {
