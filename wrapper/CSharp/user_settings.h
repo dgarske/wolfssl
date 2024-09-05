@@ -45,6 +45,7 @@
 #define WOLFSSL_KEY_GEN /* RSA key gen */
 #define WOLFSSL_ASN_TEMPLATE /* default */
 #define WOLFSSL_SHA3
+#define HAVE_ECC_ENCRYPT
 #if 0
     #define OPENSSL_EXTRA
 #endif

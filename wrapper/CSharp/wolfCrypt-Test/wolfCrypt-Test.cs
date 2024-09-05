@@ -633,6 +633,10 @@ public class wolfCrypt_Test_CSharp
         }
     } /* END hash_test */
 
+
+    /* TODO ADD TEST ecies_test */
+
+
     public static void standard_log(int lvl, StringBuilder msg)
     {
         Console.WriteLine(msg);
