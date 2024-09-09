@@ -251,11 +251,11 @@ namespace wolfSSL.CSharp
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_ctx_set_info(IntPtr ctx, IntPtr info, int sz);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_ecc_encrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, ref uint outSz, IntPtr ctx);
+        private extern static int wc_ecc_encrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_ecc_encrypt_ex(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, ref uint outSz, IntPtr ctx, int compressed);
+        private extern static int wc_ecc_encrypt_ex(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx, int compressed);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
-        private extern static int wc_ecc_decrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, ref uint outSz, IntPtr ctx);
+        private extern static int wc_ecc_decrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx);
 
 
         /********************************
@@ -756,6 +756,444 @@ namespace wolfSSL.CSharp
             }
         }
         /* END ECC */
+
+
+        /***********************************************************************
+         * ECIES
+         **********************************************************************/
+
+        /// <summary>
+        /// Create a new ECIES context with flags, RNG, and custom heap.
+        /// </summary>
+        /// <param name="flags">Flags for the context initialization.</param>
+        /// <param name="rng">Random Number Generator (RNG) pointer.</param>
+        /// <param name="heap">Custom heap pointer for memory allocations.</param>
+        /// <returns>Pointer to the newly created ECIES context or IntPtr.Zero on failure.</returns>
+        public static IntPtr EciesNewCtx(int flags, IntPtr rng, IntPtr heap)
+        {
+            IntPtr ctx = IntPtr.Zero;
+            heap = IntPtr.Zero;
+
+            try
+            {
+                ctx = wc_ecc_ctx_new_ex(flags, rng, heap);
+                if (ctx == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "ECIES context creation with custom heap failed: returned IntPtr.Zero");
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES context creation with custom heap failed: " + e.ToString());
+                return IntPtr.Zero;
+            }
+
+            return ctx;
+        }
+
+        /// <summary>
+        /// Reset the ECIES context with a new RNG.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context to reset.</param>
+        /// <param name="rng">New RNG to set.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesCtxReset(IntPtr ctx, IntPtr rng)
+        {
+            int ret;
+
+            try
+            {
+                ret = wc_ecc_ctx_reset(ctx, rng);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES context reset exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Set encryption, KDF, and MAC algorithms for the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <param name="encAlgo">Encryption algorithm identifier.</param>
+        /// <param name="kdfAlgo">Key Derivation Function (KDF) algorithm identifier.</param>
+        /// <param name="macAlgo">MAC algorithm identifier.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesSetAlgo(IntPtr ctx, byte encAlgo, byte kdfAlgo, byte macAlgo)
+        {
+            int ret;
+
+            try
+            {
+                ret = wc_ecc_ctx_set_algo(ctx, encAlgo, kdfAlgo, macAlgo);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES set algorithm exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Get the ECIES own salt.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <returns>Pointer to the own salt, or IntPtr.Zero if there is an error.</returns>
+        public static IntPtr EciesGetOwnSalt(IntPtr ctx)
+        {
+            IntPtr saltPtr = IntPtr.Zero;
+
+            try
+            {
+                /* Check */
+                if (ctx == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "Invalid ECIES context pointer.");
+                    return IntPtr.Zero;
+                }
+
+                /* Retrieve own salt */
+                saltPtr = wc_ecc_ctx_get_own_salt(ctx);
+
+                if (saltPtr == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "Failed to get own salt.");
+                    return IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES get own salt exception: " + e.ToString());
+                saltPtr = IntPtr.Zero;
+            }
+
+            return saltPtr;
+        }
+
+
+        /// <summary>
+        /// Set the peer salt for the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <param name="salt">Peer salt as a byte array.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesSetPeerSalt(IntPtr ctx, byte[] salt)
+        {
+            IntPtr saltPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                saltPtr = Marshal.AllocHGlobal(salt.Length);
+                Marshal.Copy(salt, 0, saltPtr, salt.Length);
+
+                /* Set the peer salt */
+                ret = wc_ecc_ctx_set_peer_salt(ctx, saltPtr);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES set peer salt exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Set the own salt for the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <param name="salt">Own salt as a byte array.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesSetOwnSalt(IntPtr ctx, byte[] salt)
+        {
+            IntPtr saltPtr = IntPtr.Zero;
+            uint saltSz;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                saltSz = (uint)salt.Length;
+                saltPtr = Marshal.AllocHGlobal(salt.Length);
+                Marshal.Copy(salt, 0, saltPtr, salt.Length);
+
+                /* Set the own salt */
+                ret = wc_ecc_ctx_set_own_salt(ctx, saltPtr, saltSz);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES set own salt exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Set the KDF salt for the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <param name="salt">KDF salt as a byte array.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesSetKdfSalt(IntPtr ctx, byte[] salt)
+        {
+            IntPtr saltPtr = IntPtr.Zero;
+            uint saltSz;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                saltSz = (uint)salt.Length;
+                saltPtr = Marshal.AllocHGlobal(salt.Length);
+                Marshal.Copy(salt, 0, saltPtr, salt.Length);
+
+                /* Set the KDF salt */
+                ret = wc_ecc_ctx_set_kdf_salt(ctx, saltPtr, saltSz);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES set KDF salt exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Set the info for the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context.</param>
+        /// <param name="info">Info as a byte array.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesSetInfo(IntPtr ctx, byte[] info)
+        {
+            IntPtr infoPtr = IntPtr.Zero;
+            int ret;
+
+            try
+            {
+                /* Allocate memory */
+                infoPtr = Marshal.AllocHGlobal(info.Length);
+                Marshal.Copy(info, 0, infoPtr, info.Length);
+
+                /* Set the info */
+                ret = wc_ecc_ctx_set_info(ctx, infoPtr, info.Length);
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES set info exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (infoPtr != IntPtr.Zero) Marshal.FreeHGlobal(infoPtr);
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Encrypt a message using ECIES.
+        /// </summary>
+        /// <param name="privKey">Private key.</param>
+        /// <param name="pubKey">Public key.</param>
+        /// <param name="msg">Message to encrypt.</param>
+        /// <param name="msgSz">Message size.</param>
+        /// <param name="outBuffer">Output buffer.</param>
+        /// <param name="ctx">ECIES context.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesEncrypt(IntPtr privKey, IntPtr pubKey, byte[] msg, uint msgSz, byte[] outBuffer, IntPtr ctx)
+        {
+            int ret;
+            int outBufferLength = 0;
+            IntPtr msgPtr = IntPtr.Zero;
+            IntPtr outBufferPtr = IntPtr.Zero;
+            IntPtr outSz = IntPtr.Zero;
+
+            try
+            {
+                /* Allocate memory */
+                msgPtr = Marshal.AllocHGlobal(msg.Length);
+                outBufferPtr = Marshal.AllocHGlobal(outBuffer.Length);
+                outSz = Marshal.AllocHGlobal(sizeof(uint));
+
+                Marshal.WriteInt32(outSz, outBuffer.Length);
+                Marshal.Copy(msg, 0, msgPtr, msg.Length);
+
+                /* Encrypt */
+                ret = wc_ecc_encrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, outSz, ctx);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to encrypt message using ECIES. Error code: " + ret);
+                }
+                /* Output actual output buffer length */
+                if (ret == 0)
+                {
+                    outBufferLength = Marshal.ReadInt32(outSz);
+                    if (outBufferLength <= outBuffer.Length)
+                    {
+                        Marshal.Copy(outSz, outBuffer, 0, outBufferLength);
+                    }
+                    else
+                    {
+                        ret = BUFFER_E;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES encryption exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
+                if (outBufferPtr != IntPtr.Zero) Marshal.FreeHGlobal(outBufferPtr);
+                if (outSz != IntPtr.Zero) Marshal.FreeHGlobal(outSz);
+            }
+
+            return ret == 0 ? outBufferLength : ret;
+        }
+
+        /// <summary>
+        /// Decrypt a message using ECIES.
+        /// </summary>
+        /// <param name="privKey">Private key.</param>
+        /// <param name="pubKey">Public key.</param>
+        /// <param name="msg">Encrypted message.</param>
+        /// <param name="msgSz">Message size.</param>
+        /// <param name="outBuffer">Output buffer for the decrypted message.</param>
+        /// <param name="ctx">ECIES context.</param>
+        /// <returns>0 on success, or a negative error code on failure.</returns>
+        public static int EciesDecrypt(IntPtr privKey, IntPtr pubKey, byte[] msg, uint msgSz, byte[] outBuffer, IntPtr ctx)
+        {
+            int ret;
+            int outBufferLength = 0;
+            IntPtr msgPtr = IntPtr.Zero;
+            IntPtr outBufferPtr = IntPtr.Zero;
+            IntPtr outSz = IntPtr.Zero;
+            try
+            {
+                /* Allocate memory */
+                msgPtr = Marshal.AllocHGlobal(msg.Length);
+                outBufferPtr = Marshal.AllocHGlobal(outBuffer.Length);
+                outSz = Marshal.AllocHGlobal(sizeof(uint));
+
+                Marshal.WriteInt32(outSz, outBuffer.Length);
+                Marshal.Copy(msg, 0, msgPtr, msg.Length);
+
+                /* Decrypt */
+                ret = wc_ecc_decrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, outSz, ctx);
+                if (ret < 0)
+                {
+                    log(ERROR_LOG, "Failed to decrypt message using ECIES. Error code: " + ret);
+                }
+                /* Output actual output buffer length */
+                if (ret == 0)
+                {
+                    outBufferLength = Marshal.ReadInt32(outSz);
+                    if (outBufferLength <= outBuffer.Length)
+                    {
+                        Marshal.Copy(outSz, outBuffer, 0, outBufferLength);
+                    }
+                    else
+                    {
+                        ret = BUFFER_E;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECIES decryption exception: " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
+                if (outBufferPtr != IntPtr.Zero) Marshal.FreeHGlobal(outBufferPtr);
+                if (outSz != IntPtr.Zero) Marshal.FreeHGlobal(outSz);
+            }
+
+            return ret == 0 ? outBufferLength : ret;
+        }
+
+        /// <summary>
+        /// Free the ECIES context.
+        /// </summary>
+        /// <param name="ctx">Pointer to the ECIES context to free.</param>
+        public static void EciesFreeCtx(IntPtr ctx)
+        {
+            if (ctx != IntPtr.Zero)
+            {
+                wc_ecc_ctx_free(ctx);
+            }
+        }
+
+        /********************************
+         * ENUMS
+         */
+        public enum ecEncAlgo {
+            ecAES_128_CBC = 1,  /* default */
+            ecAES_256_CBC = 2,
+            ecAES_128_CTR = 3,
+            ecAES_256_CTR = 4
+        }
+
+        public enum ecKdfAlgo {
+            ecHKDF_SHA256      = 1,  /* default */
+            ecHKDF_SHA1        = 2,
+            ecKDF_X963_SHA1    = 3,
+            ecKDF_X963_SHA256  = 4,
+            ecKDF_SHA1         = 5,
+            ecKDF_SHA256       = 6
+        }
+
+        public enum ecMacAlgo {
+            ecHMAC_SHA256 = 1,  /* default */
+            ecHMAC_SHA1   = 2
+        }
+
+        public enum ecKeySizea {
+            KEY_SIZE_128     = 16,
+            KEY_SIZE_256     = 32,
+            IV_SIZE_64       =  8,
+            IV_SIZE_128      = 16,
+            ECC_MAX_IV_SIZE  = 16,
+            EXCHANGE_SALT_SZ = 16,
+            EXCHANGE_INFO_SZ = 23
+        }
+
+        public enum ecFlags {
+            REQ_RESP_CLIENT = 1,
+            REQ_RESP_SERVER = 2
+        }
+        /* END ECIES */
 
 
         /***********************************************************************
@@ -2233,7 +2671,6 @@ namespace wolfSSL.CSharp
 
             try
             {
-
                 /* Get hash size and initialize */
                 int hashSize = wc_HashGetDigestSize(hashType);
                 output = new byte[hashSize];
@@ -2321,448 +2758,6 @@ namespace wolfSSL.CSharp
             WC_HASH_TYPE_BLAKE2S  = 15,
         }
         /* END HASH */
-
-
-        /***********************************************************************
-         * ECIES
-         **********************************************************************/
-
-        /// <summary>
-        /// Create a new ECIES context with flags and RNG.
-        /// </summary>
-        /// <param name="flags">Flags for the context initialization.</param>
-        /// <param name="rng">Random Number Generator (RNG) pointer.</param>
-        /// <returns>Pointer to the newly created ECIES context or IntPtr.Zero on failure.</returns>
-        public static IntPtr EciesNewCtx(int flags, IntPtr rng)
-        {
-            IntPtr ctx = IntPtr.Zero;
-
-            try
-            {
-                ctx = wc_ecc_ctx_new(flags, rng);
-                if (ctx == IntPtr.Zero)
-                {
-                    log(ERROR_LOG, "ECIES context creation failed: returned IntPtr.Zero");
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES context creation failed: " + e.ToString());
-                return IntPtr.Zero;
-            }
-
-            return ctx;
-        }
-
-        /// <summary>
-        /// Create a new ECIES context with flags, RNG, and custom heap.
-        /// </summary>
-        /// <param name="flags">Flags for the context initialization.</param>
-        /// <param name="rng">Random Number Generator (RNG) pointer.</param>
-        /// <param name="heap">Custom heap pointer for memory allocations.</param>
-        /// <returns>Pointer to the newly created ECIES context or IntPtr.Zero on failure.</returns>
-        public static IntPtr EciesNewCtxEx(int flags, IntPtr rng, IntPtr heap)
-        {
-            IntPtr ctx = IntPtr.Zero;
-
-            try
-            {
-                ctx = wc_ecc_ctx_new_ex(flags, rng, heap);
-                if (ctx == IntPtr.Zero)
-                {
-                    log(ERROR_LOG, "ECIES context creation with custom heap failed: returned IntPtr.Zero");
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES context creation with custom heap failed: " + e.ToString());
-                return IntPtr.Zero;
-            }
-
-            return ctx;
-        }
-
-        /// <summary>
-        /// Reset the ECIES context with a new RNG.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context to reset.</param>
-        /// <param name="rng">New RNG to set.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesCtxReset(IntPtr ctx, IntPtr rng)
-        {
-            int ret;
-
-            try
-            {
-                ret = wc_ecc_ctx_reset(ctx, rng);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES context reset exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Set encryption, KDF, and MAC algorithms for the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <param name="encAlgo">Encryption algorithm identifier.</param>
-        /// <param name="kdfAlgo">Key Derivation Function (KDF) algorithm identifier.</param>
-        /// <param name="macAlgo">MAC algorithm identifier.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesSetAlgo(IntPtr ctx, byte encAlgo, byte kdfAlgo, byte macAlgo)
-        {
-            int ret;
-
-            try
-            {
-                ret = wc_ecc_ctx_set_algo(ctx, encAlgo, kdfAlgo, macAlgo);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES set algorithm exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Get the ECIES own salt.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <returns>Pointer to the own salt, or IntPtr.Zero if there is an error.</returns>
-        public static IntPtr EciesGetOwnSalt(IntPtr ctx)
-        {
-            IntPtr saltPtr = IntPtr.Zero;
-
-            try
-            {
-                /* Check */
-                if (ctx == IntPtr.Zero)
-                {
-                    log(ERROR_LOG, "Invalid ECIES context pointer.");
-                    return IntPtr.Zero;
-                }
-
-                /* Retrieve the own salt */
-                saltPtr = wc_ecc_ctx_get_own_salt(ctx);
-
-                if (saltPtr == IntPtr.Zero)
-                {
-                    log(ERROR_LOG, "Failed to get own salt.");
-                    return IntPtr.Zero;
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES get own salt exception: " + e.ToString());
-                saltPtr = IntPtr.Zero;
-            }
-
-            return saltPtr;
-        }
-
-
-        /// <summary>
-        /// Set the peer salt for the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <param name="salt">Peer salt as a byte array.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesSetPeerSalt(IntPtr ctx, byte[] salt)
-        {
-            IntPtr saltPtr = IntPtr.Zero;
-            int ret;
-
-            try
-            {
-                /* Allocate memory */
-                saltPtr = Marshal.AllocHGlobal(salt.Length);
-                Marshal.Copy(salt, 0, saltPtr, salt.Length);
-
-                /* Set the peer salt */
-                ret = wc_ecc_ctx_set_peer_salt(ctx, saltPtr);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES set peer salt exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Set the own salt for the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <param name="salt">Own salt as a byte array.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesSetOwnSalt(IntPtr ctx, byte[] salt)
-        {
-            IntPtr saltPtr = IntPtr.Zero;
-            uint saltSz;
-            int ret;
-
-            try
-            {
-                /* Allocate memory */
-                saltSz = (uint)salt.Length;
-                saltPtr = Marshal.AllocHGlobal(salt.Length);
-                Marshal.Copy(salt, 0, saltPtr, salt.Length);
-
-                /* Set the own salt */
-                ret = wc_ecc_ctx_set_own_salt(ctx, saltPtr, saltSz);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES set own salt exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Set the KDF salt for the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <param name="salt">KDF salt as a byte array.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesSetKdfSalt(IntPtr ctx, byte[] salt)
-        {
-            IntPtr saltPtr = IntPtr.Zero;
-            uint saltSz;
-            int ret;
-
-            try
-            {
-                /* Allocate memory */
-                saltSz = (uint)salt.Length;
-                saltPtr = Marshal.AllocHGlobal(salt.Length);
-                Marshal.Copy(salt, 0, saltPtr, salt.Length);
-
-                /* Set the KDF salt */
-                ret = wc_ecc_ctx_set_kdf_salt(ctx, saltPtr, saltSz);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES set KDF salt exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Set the info for the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <param name="info">Info as a byte array.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesSetInfo(IntPtr ctx, byte[] info)
-        {
-            IntPtr infoPtr = IntPtr.Zero;
-            int ret;
-
-            try
-            {
-                /* Allocate memory */
-                infoPtr = Marshal.AllocHGlobal(info.Length);
-                Marshal.Copy(info, 0, infoPtr, info.Length);
-
-                /* Set the info */
-                ret = wc_ecc_ctx_set_info(ctx, infoPtr, info.Length);
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES set info exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (infoPtr != IntPtr.Zero) Marshal.FreeHGlobal(infoPtr);
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Encrypt a message using ECIES.
-        /// </summary>
-        /// <param name="privKey">Private key.</param>
-        /// <param name="pubKey">Public key.</param>
-        /// <param name="msg">Message to encrypt.</param>
-        /// <param name="msgSz">Message size.</param>
-        /// <param name="outBuffer">Output buffer.</param>
-        /// <param name="outSz">Size of the output buffer.</param>
-        /// <param name="ctx">ECIES context.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesEncrypt(IntPtr privKey, IntPtr pubKey, byte[] msg, uint msgSz, byte[] outBuffer, ref uint outSz, IntPtr ctx)
-        {
-            int ret;
-            IntPtr msgPtr = IntPtr.Zero;
-            IntPtr outBufferPtr = IntPtr.Zero;
-
-            try
-            {
-                /* Allocate memory */
-                msgPtr = Marshal.AllocHGlobal(msg.Length);
-                outBufferPtr = Marshal.AllocHGlobal((int)outSz);
-
-                Marshal.Copy(msg, 0, msgPtr, msg.Length);
-
-                /* Encrypt */
-                ret = wc_ecc_encrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, ref outSz, ctx);
-                if (ret < 0)
-                {
-                    log(ERROR_LOG, "Failed to encrypt message using ECIES. Error code: " + ret);
-                }
-                else
-                {
-                    Marshal.Copy(outBufferPtr, outBuffer, 0, (int)outSz);
-                    ret = 0;
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES encryption exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
-                if (outBufferPtr != IntPtr.Zero) Marshal.FreeHGlobal(outBufferPtr);
-            }
-
-            return ret;
-        }
-
-
-        /// <summary>
-        /// Decrypt a message using ECIES.
-        /// </summary>
-        /// <param name="privKey">Private key.</param>
-        /// <param name="pubKey">Public key.</param>
-        /// <param name="msg">Encrypted message.</param>
-        /// <param name="msgSz">Message size.</param>
-        /// <param name="outBuffer">Output buffer for the decrypted message.</param>
-        /// <param name="outSz">Size of the output buffer.</param>
-        /// <param name="ctx">ECIES context.</param>
-        /// <returns>0 on success, or a negative error code on failure.</returns>
-        public static int EciesDecrypt(IntPtr privKey, IntPtr pubKey, byte[] msg, uint msgSz, byte[] outBuffer, ref uint outSz, IntPtr ctx)
-        {
-            int ret;
-            IntPtr msgPtr = IntPtr.Zero;
-            IntPtr outBufferPtr = IntPtr.Zero;
-
-            try
-            {
-                /* Allocate memory */
-                msgPtr = Marshal.AllocHGlobal(msg.Length);
-                outBufferPtr = Marshal.AllocHGlobal((int)outSz);
-
-                Marshal.Copy(msg, 0, msgPtr, msg.Length);
-
-                /* Decrypt */
-                ret = wc_ecc_decrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, ref outSz, ctx);
-                if (ret < 0)
-                {
-                    log(ERROR_LOG, "Failed to decrypt message using ECIES. Error code: " + ret);
-                }
-                else
-                {
-                    Marshal.Copy(outBufferPtr, outBuffer, 0, (int)outSz);
-                    ret = 0;
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECIES decryption exception: " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-            finally
-            {
-                /* Cleanup */
-                if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
-                if (outBufferPtr != IntPtr.Zero) Marshal.FreeHGlobal(outBufferPtr);
-            }
-
-            return ret;
-        }
-
-        /// <summary>
-        /// Free the ECIES context.
-        /// </summary>
-        /// <param name="ctx">Pointer to the ECIES context to free.</param>
-        public static void EciesFreeCtx(IntPtr ctx)
-        {
-            if (ctx != IntPtr.Zero)
-            {
-                wc_ecc_ctx_free(ctx);
-            }
-        }
-
-        /********************************
-         * ENUMS
-         */
-        public enum ecEncAlgo {
-            ecAES_128_CBC = 1,  /* default */
-            ecAES_256_CBC = 2,
-            ecAES_128_CTR = 3,
-            ecAES_256_CTR = 4
-        }
-
-        public enum ecKdfAlgo {
-            ecHKDF_SHA256      = 1,  /* default */
-            ecHKDF_SHA1        = 2,
-            ecKDF_X963_SHA1    = 3,
-            ecKDF_X963_SHA256  = 4,
-            ecKDF_SHA1         = 5,
-            ecKDF_SHA256       = 6
-        }
-
-        public enum ecMacAlgo {
-            ecHMAC_SHA256 = 1,  /* default */
-            ecHMAC_SHA1   = 2
-        }
-
-        public enum jeff {
-            KEY_SIZE_128     = 16,
-            KEY_SIZE_256     = 32,
-            IV_SIZE_64       =  8,
-            IV_SIZE_128      = 16,
-            ECC_MAX_IV_SIZE  = 16,
-            EXCHANGE_SALT_SZ = 16,
-            EXCHANGE_INFO_SZ = 23
-        }
-
-        public enum ecFlags {
-            REQ_RESP_CLIENT = 1,
-            REQ_RESP_SERVER = 2
-        }
-        /* END ECIES */
 
 
         /***********************************************************************
