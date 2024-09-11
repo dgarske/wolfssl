@@ -45,6 +45,7 @@
 #define WOLFSSL_KEY_GEN /* RSA key gen */
 #define WOLFSSL_ASN_TEMPLATE /* default */
 #define WOLFSSL_SHA3
+
 #if 0
     #define OPENSSL_EXTRA
 #endif
@@ -67,6 +68,8 @@
 #define HAVE_HKDF
 
 #undef  NO_DH
+#define HAVE_PUBLIC_FFDHE
+#define HAVE_FFDHE_2048
 #define HAVE_FFDHE_4096
 
 #undef  NO_RSA

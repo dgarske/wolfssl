@@ -46,7 +46,7 @@ apt-get install mono-complete
 
 ```
 ./autogen.sh
-./configure --enable-keygen --enable-ed25519 --enable-curve25519 --enable-aesgcm
+./configure --enable-keygen --enable--eccencrypt --enable-ed25519 --enable-curve25519 --enable-aesgcm
 make
 make check
 sudo make install
