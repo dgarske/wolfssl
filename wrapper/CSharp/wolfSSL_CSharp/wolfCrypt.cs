@@ -308,6 +308,7 @@ namespace wolfSSL.CSharp
         public static readonly int AES_128_KEY_SIZE = 16;     /* for 128 bit */
         public static readonly int AES_192_KEY_SIZE = 24;     /* for 192 bit */
         public static readonly int AES_256_KEY_SIZE = 32;     /* for 256 bit */
+        public static readonly int AES_BLOCK_SIZE = 16;
 
         /* Error codes */
         public static readonly int SUCCESS = 0;
@@ -1044,8 +1045,19 @@ namespace wolfSSL.CSharp
                 Marshal.WriteInt32(outSz, outBuffer.Length);
                 Marshal.Copy(msg, 0, msgPtr, msg.Length);
 
+                Console.WriteLine("Private Key Pointer: " + privKey);
+                Console.WriteLine("Public Key Pointer: " + pubKey);
+                Console.WriteLine("Message Size: " + msgSz);
+                Console.WriteLine("Message: " + BitConverter.ToString(msg));
+                Console.WriteLine("Context Pointer: " + ctx);
+
                 /* Encrypt */
                 ret = wc_ecc_encrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, outSz, ctx);
+
+                Console.WriteLine($"wc_ecc_decrypt returned: {ret}");
+                Console.WriteLine($"Message size (msgSz): {msgSz}");
+                Console.WriteLine($"Allocated outBuffer size: {outBuffer.Length}");
+
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to encrypt message using ECIES. Error code: " + ret);
@@ -1056,7 +1068,7 @@ namespace wolfSSL.CSharp
                     outBufferLength = Marshal.ReadInt32(outSz);
                     if (outBufferLength <= outBuffer.Length)
                     {
-                        Marshal.Copy(outSz, outBuffer, 0, outBufferLength);
+                        Marshal.Copy(outBufferPtr, outBuffer, 0, outBufferLength);
                     }
                     else
                     {
@@ -1097,6 +1109,7 @@ namespace wolfSSL.CSharp
             IntPtr msgPtr = IntPtr.Zero;
             IntPtr outBufferPtr = IntPtr.Zero;
             IntPtr outSz = IntPtr.Zero;
+
             try
             {
                 /* Allocate memory */
@@ -1107,8 +1120,20 @@ namespace wolfSSL.CSharp
                 Marshal.WriteInt32(outSz, outBuffer.Length);
                 Marshal.Copy(msg, 0, msgPtr, msg.Length);
 
+
+                Console.WriteLine("Private Key Pointer: " + privKey);
+                Console.WriteLine("Public Key Pointer: " + pubKey);
+                Console.WriteLine("Message Size: " + msgSz);
+                Console.WriteLine("Message: " + BitConverter.ToString(msg));
+                Console.WriteLine("Context Pointer: " + ctx);
+
                 /* Decrypt */
                 ret = wc_ecc_decrypt(privKey, pubKey, msgPtr, msgSz, outBufferPtr, outSz, ctx);
+
+                Console.WriteLine($"wc_ecc_decrypt returned: {ret}");
+                Console.WriteLine($"Message size (msgSz): {msgSz}");
+                Console.WriteLine($"Allocated outBuffer size: {outBuffer.Length}");
+
                 if (ret < 0)
                 {
                     log(ERROR_LOG, "Failed to decrypt message using ECIES. Error code: " + ret);
@@ -1119,7 +1144,7 @@ namespace wolfSSL.CSharp
                     outBufferLength = Marshal.ReadInt32(outSz);
                     if (outBufferLength <= outBuffer.Length)
                     {
-                        Marshal.Copy(outSz, outBuffer, 0, outBufferLength);
+                        Marshal.Copy(outBufferPtr, outBuffer, 0, outBufferLength);
                     }
                     else
                     {
@@ -1130,7 +1155,7 @@ namespace wolfSSL.CSharp
             catch (Exception e)
             {
                 log(ERROR_LOG, "ECIES decryption exception: " + e.ToString());
-                ret = EXCEPTION_E;
+                return EXCEPTION_E;
             }
             finally
             {

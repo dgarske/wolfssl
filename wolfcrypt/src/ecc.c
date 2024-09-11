@@ -10650,11 +10650,25 @@ int wc_ecc_import_x963_ex(const byte* in, word32 inLen, ecc_key* key,
 
     SAVE_VECTOR_REGISTERS(return _svr_ret;);
 
+    printf("Input buffer (first byte): %x\n", in[0]);
+    printf("Input length: %d\n", inLen);
+
     /* check for point type (4, 2, or 3) */
     pointType = in[0];
+
+    printf("Point type: %d\n", pointType);
+
     if (pointType != ECC_POINT_UNCOMP && pointType != ECC_POINT_COMP_EVEN &&
                                          pointType != ECC_POINT_COMP_ODD) {
         err = ASN_PARSE_E;
+    }
+
+    printf("Error: Invalid point type detected, error: %d\n", err);
+
+    if (err == 0) {
+        printf("Point type is valid: %d\n", pointType);
+    } else {
+        printf("Point type validation failed with error: %d\n", err);
     }
 
     if (pointType == ECC_POINT_COMP_EVEN || pointType == ECC_POINT_COMP_ODD) {

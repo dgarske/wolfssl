@@ -665,7 +665,6 @@ public class wolfCrypt_Test_CSharp
         /* Initialize keys */
         a = wolfcrypt.EccMakeKey(keySize);
         b = wolfcrypt.EccMakeKey(keySize);
-
         if (a == IntPtr.Zero || b == IntPtr.Zero)
         {
             throw new Exception("Key generation failed.");
@@ -675,7 +674,6 @@ public class wolfCrypt_Test_CSharp
         /* Create ECIES contexts for encryption and decryption */
         aCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_CLIENT, rng, heap);
         bCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_SERVER, rng, heap);
-
         if (aCtx == IntPtr.Zero || bCtx == IntPtr.Zero)
         {
             throw new Exception("Context creation failed.");
@@ -683,7 +681,8 @@ public class wolfCrypt_Test_CSharp
         Console.WriteLine("ECC context creation passed.");
 
         /* Set KDF salt */
-        if (wolfcrypt.EciesSetKdfSalt(aCtx, salt) != 0 || wolfcrypt.EciesSetKdfSalt(bCtx, salt) != 0)
+        if (wolfcrypt.EciesSetKdfSalt(aCtx, salt) != 0 ||
+            wolfcrypt.EciesSetKdfSalt(bCtx, salt) != 0)
         {
             throw new Exception("Failed to set KDF salt.");
         }
@@ -692,9 +691,12 @@ public class wolfCrypt_Test_CSharp
         /* Prepare plaintext */
         Array.Clear(plaintext, 0, plaintext.Length);
         Array.Copy(Encoding.ASCII.GetBytes(message), plaintext, message.Length);
+        /* Pad to block size */
+        int plaintextLen = ((message.Length + (wolfcrypt.AES_BLOCK_SIZE - 1)) /
+                            wolfcrypt.AES_BLOCK_SIZE) * wolfcrypt.AES_BLOCK_SIZE;
 
         /* Encrypt message */
-        int ret = wolfcrypt.EciesEncrypt(a, b, plaintext, (uint)plaintext.Length, encrypted, aCtx);
+        int ret = wolfcrypt.EciesEncrypt(a, b, plaintext, (uint)plaintextLen, encrypted, aCtx);
         if (ret < 0)
         {
             throw new Exception("Encryption failed.");
@@ -702,7 +704,7 @@ public class wolfCrypt_Test_CSharp
 
         int encryptedLen = ret;
         Console.WriteLine("ECC encryption passed.");
-
+             
         /* Decrypt message */
         ret = wolfcrypt.EciesDecrypt(b, a, encrypted, (uint)encryptedLen, decrypted, bCtx);
         if (ret < 0)
@@ -716,7 +718,6 @@ public class wolfCrypt_Test_CSharp
         /* Compare decrypted text to original plaintext */
         byte[] decryptedText = new byte[decryptedLen];
         Array.Copy(decrypted, decryptedText, decryptedLen);
-
         if (!wolfcrypt.ByteArrayVerify(plaintext, decryptedText))
         {
             throw new Exception("Decrypted text does not match original plaintext.");
