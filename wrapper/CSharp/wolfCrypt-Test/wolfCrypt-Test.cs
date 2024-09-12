@@ -633,105 +633,106 @@ public class wolfCrypt_Test_CSharp
         }
     } /* END hash_test */
 
-    private static void ecies_test()
-{
-    const int keySize = 32;
-    const int bufferSize = 128;
-    const string message = "Hello wolfSSL!";
-    byte[] salt = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-
-    IntPtr a = IntPtr.Zero;
-    IntPtr b = IntPtr.Zero;
-    IntPtr aCtx = IntPtr.Zero;
-    IntPtr bCtx = IntPtr.Zero;
-    IntPtr rng = IntPtr.Zero;
-    IntPtr heap = IntPtr.Zero;
-
-    byte[] plaintext = new byte[bufferSize];
-    byte[] encrypted = new byte[bufferSize];
-    byte[] decrypted = new byte[bufferSize];
-
-    try
+    private static void ecies_test(int keySize)
     {
-        Console.WriteLine($"\nStarting ecies test for {keySize} key size...");
+        /* maximum encrypted message:
+         * msgSz (14) + pad (2) + pubKeySz(1+66*2) + ivSz(16) + digestSz(32) = 197 */
+        int bufferSize = wolfcrypt.MAX_ECIES_TEST_SZ;
+        const string message = "Hello wolfSSL!";
+        byte[] salt = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 
-        /* Create a new RNG context */
-        rng = wolfcrypt.RandomNew();
-        if (rng == IntPtr.Zero)
+        IntPtr a = IntPtr.Zero;
+        IntPtr b = IntPtr.Zero;
+        IntPtr aCtx = IntPtr.Zero;
+        IntPtr bCtx = IntPtr.Zero;
+        IntPtr rng = IntPtr.Zero;
+        IntPtr heap = IntPtr.Zero;
+
+        byte[] plaintext = new byte[bufferSize];
+        byte[] encrypted = new byte[bufferSize];
+        byte[] decrypted = new byte[bufferSize];
+
+        try
         {
-            throw new Exception("RNG initialization failed.");
-        }
+            Console.WriteLine($"\nStarting ECIES test for {keySize} byte key size...");
 
-        /* Initialize keys */
-        a = wolfcrypt.EccMakeKey(keySize);
-        b = wolfcrypt.EccMakeKey(keySize);
-        if (a == IntPtr.Zero || b == IntPtr.Zero)
+            /* Create a new RNG context */
+            rng = wolfcrypt.RandomNew();
+            if (rng == IntPtr.Zero)
+            {
+                throw new Exception("RNG initialization failed.");
+            }
+
+            /* Initialize keys */
+            a = wolfcrypt.EccMakeKey(keySize);
+            b = wolfcrypt.EccMakeKey(keySize);
+            if (a == IntPtr.Zero || b == IntPtr.Zero)
+            {
+                throw new Exception("Key generation failed.");
+            }
+            Console.WriteLine("ECC key generation passed.");
+
+            /* Create ECIES contexts for encryption and decryption */
+            aCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_CLIENT, rng, heap);
+            bCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_SERVER, rng, heap);
+            if (aCtx == IntPtr.Zero || bCtx == IntPtr.Zero)
+            {
+                throw new Exception("Context creation failed.");
+            }
+            Console.WriteLine("ECC context creation passed.");
+
+            /* Set KDF salt */
+            if (wolfcrypt.EciesSetKdfSalt(aCtx, salt) != 0 ||
+                wolfcrypt.EciesSetKdfSalt(bCtx, salt) != 0)
+            {
+                throw new Exception("Failed to set KDF salt.");
+            }
+            Console.WriteLine("KDF salt setup passed.");
+
+            /* Prepare plaintext */
+            Array.Clear(plaintext, 0, plaintext.Length);
+            Array.Copy(Encoding.ASCII.GetBytes(message), plaintext, message.Length);
+            /* Pad to block size */
+            int plaintextLen = ((message.Length + (wolfcrypt.AES_BLOCK_SIZE - 1)) /
+                                wolfcrypt.AES_BLOCK_SIZE) * wolfcrypt.AES_BLOCK_SIZE;
+
+            /* Encrypt message */
+            int ret = wolfcrypt.EciesEncrypt(a, b, plaintext, (uint)plaintextLen, encrypted, aCtx);
+            if (ret < 0)
+            {
+                throw new Exception("Encryption failed.");
+            }
+
+            int encryptedLen = ret;
+            Console.WriteLine("ECC encryption passed.");
+
+            /* Decrypt message */
+            ret = wolfcrypt.EciesDecrypt(b, a, encrypted, (uint)encryptedLen, decrypted, bCtx);
+            if (ret < 0)
+            {
+                throw new Exception("Decryption failed.");
+            }
+
+            int decryptedLen = ret;
+            Console.WriteLine("ECC decryption passed.");
+
+            /* Compare decrypted text to original plaintext */
+            if (!wolfcrypt.ByteArrayVerify(plaintext, decrypted))
+            {
+                throw new Exception("Decrypted text does not match original plaintext.");
+            }
+            Console.WriteLine("Decrypted text matches original plaintext.");
+        }
+        finally
         {
-            throw new Exception("Key generation failed.");
+            /* Cleanup key and context */
+            if (a != IntPtr.Zero) wolfcrypt.EccFreeKey(a);
+            if (b != IntPtr.Zero) wolfcrypt.EccFreeKey(b);
+            if (aCtx != IntPtr.Zero) wolfcrypt.EciesFreeCtx(aCtx);
+            if (bCtx != IntPtr.Zero) wolfcrypt.EciesFreeCtx(bCtx);
+            if (rng != IntPtr.Zero) wolfcrypt.RandomFree(rng);
         }
-        Console.WriteLine("ECC key generation passed.");
-
-        /* Create ECIES contexts for encryption and decryption */
-        aCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_CLIENT, rng, heap);
-        bCtx = wolfcrypt.EciesNewCtx((int)wolfcrypt.ecFlags.REQ_RESP_SERVER, rng, heap);
-        if (aCtx == IntPtr.Zero || bCtx == IntPtr.Zero)
-        {
-            throw new Exception("Context creation failed.");
-        }
-        Console.WriteLine("ECC context creation passed.");
-
-        /* Set KDF salt */
-        if (wolfcrypt.EciesSetKdfSalt(aCtx, salt) != 0 ||
-            wolfcrypt.EciesSetKdfSalt(bCtx, salt) != 0)
-        {
-            throw new Exception("Failed to set KDF salt.");
-        }
-        Console.WriteLine("KDF salt setup passed.");
-
-        /* Prepare plaintext */
-        Array.Clear(plaintext, 0, plaintext.Length);
-        Array.Copy(Encoding.ASCII.GetBytes(message), plaintext, message.Length);
-        /* Pad to block size */
-        int plaintextLen = ((message.Length + (wolfcrypt.AES_BLOCK_SIZE - 1)) /
-                            wolfcrypt.AES_BLOCK_SIZE) * wolfcrypt.AES_BLOCK_SIZE;
-
-        /* Encrypt message */
-        int ret = wolfcrypt.EciesEncrypt(a, b, plaintext, (uint)plaintextLen, encrypted, aCtx);
-        if (ret < 0)
-        {
-            throw new Exception("Encryption failed.");
-        }
-
-        int encryptedLen = ret;
-        Console.WriteLine("ECC encryption passed.");
-
-        /* Decrypt message */
-        ret = wolfcrypt.EciesDecrypt(b, a, encrypted, (uint)encryptedLen, decrypted, bCtx);
-        if (ret < 0)
-        {
-            throw new Exception("Decryption failed.");
-        }
-
-        int decryptedLen = ret;
-        Console.WriteLine("ECC decryption passed.");
-
-        /* Compare decrypted text to original plaintext */
-        if (!wolfcrypt.ByteArrayVerify(plaintext, decrypted))
-        {
-            throw new Exception("Decrypted text does not match original plaintext.");
-        }
-        Console.WriteLine("Decrypted text matches original plaintext.");
-    }
-    finally
-    {
-        /* Cleanup key and context */
-        if (a != IntPtr.Zero) wolfcrypt.EccFreeKey(a);
-        if (b != IntPtr.Zero) wolfcrypt.EccFreeKey(b);
-        if (aCtx != IntPtr.Zero) wolfcrypt.EciesFreeCtx(aCtx);
-        if (bCtx != IntPtr.Zero) wolfcrypt.EciesFreeCtx(bCtx);
-        if (rng != IntPtr.Zero) wolfcrypt.RandomFree(rng);
-    }
-} /* END ecies_test */
+    } /* END ecies_test */
 
     public static void standard_log(int lvl, StringBuilder msg)
     {
@@ -770,7 +771,9 @@ public class wolfCrypt_Test_CSharp
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA512); /* SHA-512 HASH test */
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA3_256); /* SHA3_256 HASH test */
 
-            ecies_test(); /* ECIES test */
+            ecies_test(32); /* ECIES test (32 byte key size) */
+            ecies_test(48); /* ECIES test (48 byte key size) */
+            ecies_test(66); /* ECIES test (66 byte key size) */
 
             wolfcrypt.Cleanup();
 

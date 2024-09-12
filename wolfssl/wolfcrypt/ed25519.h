@@ -108,7 +108,8 @@ struct ed25519_key {
     wc_Sha512 sha;
     unsigned int sha_clean_flag : 1;
 #endif
-    unsigned int isAllocated : 1; /* flag indicates if structure was allocated */
+    /* flag indicates if structure was allocated */
+    unsigned int isAllocated : 1;
 };
 
 #ifndef WC_ED25519KEY_TYPE_DEFINED

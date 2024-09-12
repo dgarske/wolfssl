@@ -302,6 +302,7 @@ namespace wolfSSL.CSharp
         public static readonly int OTHER_LOG = 4;
         public static readonly int INVALID_DEVID = -2;
         public static readonly int ECC_MAX_SIG_SIZE = 141;    /* ECC max sig size */
+        public static readonly int MAX_ECIES_TEST_SZ = 200;   /* ECIES max sig size */
         public static readonly int ED25519_SIG_SIZE = 64;     /* ED25519 pub + priv  */
         public static readonly int ED25519_KEY_SIZE = 32;     /* Private key only */
         public static readonly int ED25519_PUB_KEY_SIZE = 32; /* Compressed public */
@@ -841,41 +842,49 @@ namespace wolfSSL.CSharp
         }
 
         /// <summary>
-        /// Get the ECIES own salt.
+        /// Get the ECIES own salt as a byte array.
         /// </summary>
         /// <param name="ctx">Pointer to the ECIES context.</param>
-        /// <returns>Pointer to the own salt, or IntPtr.Zero if there is an error.</returns>
-        public static IntPtr EciesGetOwnSalt(IntPtr ctx)
+        /// <returns>Byte array representing the own salt, or null if there is an error.</returns>
+        public static byte[] EciesGetOwnSalt(IntPtr ctx)
         {
             IntPtr saltPtr = IntPtr.Zero;
+            byte[] salt = null;
 
             try
             {
-                /* Check */
+                /* Check ctx */
                 if (ctx == IntPtr.Zero)
                 {
                     log(ERROR_LOG, "Invalid ECIES context pointer.");
-                    return IntPtr.Zero;
+                    return null;
                 }
 
-                /* Retrieve own salt */
+                /* Get own salt */
                 saltPtr = wc_ecc_ctx_get_own_salt(ctx);
-
                 if (saltPtr == IntPtr.Zero)
                 {
                     log(ERROR_LOG, "Failed to get own salt.");
-                    return IntPtr.Zero;
+                    return null;
                 }
+
+                /* Allocate salt size and copy to byte array */
+                salt = new byte[(int)ecKeySize.EXCHANGE_SALT_SZ];
+                Marshal.Copy(saltPtr, salt, 0, (int)ecKeySize.EXCHANGE_SALT_SZ);
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "ECIES get own salt exception: " + e.ToString());
-                saltPtr = IntPtr.Zero;
+                return null;
+            }
+            finally
+            {
+                /* Cleanup */
+                if (saltPtr != IntPtr.Zero) Marshal.FreeHGlobal(saltPtr);
             }
 
-            return saltPtr;
+            return salt;
         }
-
 
         /// <summary>
         /// Set the peer salt for the ECIES context.
@@ -1181,7 +1190,7 @@ namespace wolfSSL.CSharp
             ecHMAC_SHA1   = 2
         }
 
-        public enum ecKeySizea {
+        public enum ecKeySize {
             KEY_SIZE_128     = 16,
             KEY_SIZE_256     = 32,
             IV_SIZE_64       =  8,

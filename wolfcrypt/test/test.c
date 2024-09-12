@@ -33461,6 +33461,9 @@ done:
     (defined(WOLFSSL_AES_128) || defined(WOLFSSL_AES_256))
 
 #if ((! defined(HAVE_FIPS)) || FIPS_VERSION_GE(5,3))
+/* maximum encrypted message:
+ * msgSz (14) + pad (2) + pubKeySz(1+66*2) + ivSz(16) + digestSz(32) = 197 */
+#define MAX_ECIES_TEST_SZ 200
 static wc_test_ret_t ecc_ctx_kdf_salt_test(WC_RNG* rng, ecc_key* a, ecc_key* b)
 {
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
@@ -33468,9 +33471,9 @@ static wc_test_ret_t ecc_ctx_kdf_salt_test(WC_RNG* rng, ecc_key* a, ecc_key* b)
     byte* encrypted;
     byte* decrypted;
 #else
-    byte plaintext[128];
-    byte encrypted[128];
-    byte decrypted[128];
+    byte plaintext[MAX_ECIES_TEST_SZ];
+    byte encrypted[MAX_ECIES_TEST_SZ];
+    byte decrypted[MAX_ECIES_TEST_SZ];
 #endif
     ecEncCtx* aCtx = NULL;
     ecEncCtx* bCtx = NULL;
@@ -33479,13 +33482,13 @@ static wc_test_ret_t ecc_ctx_kdf_salt_test(WC_RNG* rng, ecc_key* a, ecc_key* b)
     wc_test_ret_t ret = 0;
     static const char message[] = "Hello wolfSSL!";
     word32 plaintextLen;
-    word32 encryptLen = 128;
-    word32 decryptLen = 128;
+    word32 encryptLen = MAX_ECIES_TEST_SZ;
+    word32 decryptLen = MAX_ECIES_TEST_SZ;
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    plaintext = XMALLOC(128, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
-    encrypted = XMALLOC(128, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
-    decrypted = XMALLOC(128, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+    plaintext = XMALLOC(MAX_ECIES_TEST_SZ, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+    encrypted = XMALLOC(MAX_ECIES_TEST_SZ, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
+    decrypted = XMALLOC(MAX_ECIES_TEST_SZ, HEAP_HINT, DYNAMIC_TYPE_TMP_BUFFER);
 #endif
 
     wc_ecc_free(a);
@@ -33534,7 +33537,7 @@ static wc_test_ret_t ecc_ctx_kdf_salt_test(WC_RNG* rng, ecc_key* a, ecc_key* b)
             ret = 10473;
     }
 
-    XMEMSET(plaintext, 0, 128);
+    XMEMSET(plaintext, 0, sizeof(plaintext));
     XSTRLCPY((char *)plaintext, message, sizeof plaintext);
     plaintextLen = (((word32)XSTRLEN(message) + AES_BLOCK_SIZE - 1) /
                     AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
