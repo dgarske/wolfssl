@@ -306,6 +306,7 @@ namespace wolfSSL.CSharp
         public static readonly int OTHER_LOG = 4;
         public static readonly int INVALID_DEVID = -2;
         public static readonly int ECC_MAX_SIG_SIZE = 141;    /* ECC max sig size */
+        public static readonly int  ECC_KEY_SIZE = 32;       /* ECC key size */
         public static readonly int MAX_ECIES_TEST_SZ = 200;   /* ECIES max sig size */
         public static readonly int ED25519_SIG_SIZE = 64;     /* ED25519 pub + priv  */
         public static readonly int ED25519_KEY_SIZE = 32;     /* Private key only */
@@ -663,7 +664,7 @@ namespace wolfSSL.CSharp
         /// </summary>
         /// <param name="key">ECC key structure</param>
         /// <returns>DER-encoded private key as byte array</returns>
-        public static int ExportPrivateKeyToDer(IntPtr key, out byte[] derKey)
+        public static int EccExportPrivateKeyToDer(IntPtr key, out byte[] derKey)
         {
             int ret;
             derKey = null;
@@ -697,7 +698,7 @@ namespace wolfSSL.CSharp
         /// <param name="key">ECC key structure</param>
         /// <param name="includeCurve">Include algorithm curve in the output</param>
         /// <returns>DER-encoded public key as byte array</returns>
-        public static int ExportPublicKeyToDer(IntPtr key, out byte[] derKey, bool includeCurve)
+        public static int EccExportPublicKeyToDer(IntPtr key, out byte[] derKey, bool includeCurve)
         {
             int ret;
             derKey = null;
@@ -730,7 +731,7 @@ namespace wolfSSL.CSharp
         /// </summary>
         /// <param name="keyDer">DER-encoded public key</param>
         /// <returns>Allocated ECC key structure or null</returns>
-        public static IntPtr ImportPublicKeyFromDer(byte[] keyDer)
+        public static IntPtr EccImportPublicKeyFromDer(byte[] keyDer)
         {
             int ret;
             IntPtr key = IntPtr.Zero;
@@ -1176,7 +1177,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int EcdheSharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret)
         {
-            int ret = -1;
+            int ret;
             int secretLength = secret.Length;
 
             try
@@ -2247,7 +2248,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int Curve25519SharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret)
         {
-            int ret = -1;
+            int ret;
             int secretLength = secret.Length;
 
             try
@@ -2671,7 +2672,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int InitHash(IntPtr hash, uint hashType)
         {
-            int ret = -1;
+            int ret = 0;
 
             try
             {
@@ -2704,7 +2705,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int HashUpdate(IntPtr hash, uint hashType, byte[] data)
         {
-            int ret = -1;
+            int ret = 0;
             IntPtr dataPtr = IntPtr.Zero;
 
             try
@@ -2748,7 +2749,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int HashFinal(IntPtr hash, uint hashType, out byte[] output)
         {
-            int ret = -1;
+            int ret = 0;
             IntPtr outputPtr = IntPtr.Zero;
 
             try
@@ -2796,7 +2797,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int HashFree(IntPtr hash, uint hashType)
         {
-            int ret = -1;
+            int ret = 0;
 
             try
             {

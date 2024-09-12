@@ -27,6 +27,7 @@ using System.Text;
 using System.Security.Cryptography;
 using wolfSSL.CSharp;
 using System.Runtime.InteropServices;
+using static wolfSSL.CSharp.wolfcrypt;
 
 public class wolfCrypt_Test_CSharp
 {
@@ -85,12 +86,12 @@ public class wolfCrypt_Test_CSharp
         /* Export and Import Key */
         Console.WriteLine("Testing ECC Key Export and Import...");
         byte[] privateKeyDer;
-        ret = wolfcrypt.ExportPrivateKeyToDer(key, out privateKeyDer);
+        ret = wolfcrypt.EccExportPrivateKeyToDer(key, out privateKeyDer);
         if (ret < 0) {
             throw new Exception("ExportPrivateKeyToDer failed");
         }
         byte[] publicKeyDer;
-        ret = wolfcrypt.ExportPublicKeyToDer(key, out publicKeyDer, true);
+        ret = wolfcrypt.EccExportPublicKeyToDer(key, out publicKeyDer, true);
         if (ret < 0) {
             throw new Exception("ExportPublicKeyToDer failed");
         }
@@ -100,7 +101,7 @@ public class wolfCrypt_Test_CSharp
             throw new Exception("EccImportKey Private failed");
         }
 
-        PubKey = wolfcrypt.ImportPublicKeyFromDer(publicKeyDer);
+        PubKey = wolfcrypt.EccImportPublicKeyFromDer(publicKeyDer);
         if (PubKey == IntPtr.Zero)
         {
             throw new Exception("ImportPublicKeyFromDer Public failed");
@@ -430,7 +431,7 @@ public class wolfCrypt_Test_CSharp
         IntPtr publicKeyB = IntPtr.Zero;
         byte[] derKey;
 
-        Console.WriteLine("\nStarting Curve25519 test...");
+        Console.WriteLine("\nStarting Curve25519 shared secret test...");
 
         /* Generate Key Pair A */
         Console.WriteLine("Generating Key Pair A...");
@@ -519,6 +520,105 @@ public class wolfCrypt_Test_CSharp
         if (publicKeyA != IntPtr.Zero) wolfcrypt.Curve25519FreeKey(publicKeyA);
         if (publicKeyB != IntPtr.Zero) wolfcrypt.Curve25519FreeKey(publicKeyB);
     } /* END curve25519_test */
+
+    private static void ecdhe_test(int keySize)
+    {
+        int ret;
+        IntPtr keyA = IntPtr.Zero;
+        IntPtr keyB = IntPtr.Zero;
+        IntPtr publicKeyA = IntPtr.Zero;
+        IntPtr publicKeyB = IntPtr.Zero;
+        byte[] derKey;
+
+        Console.WriteLine("\nStarting ECDHE shared secret test...");
+
+        /* Generate Key Pair A */
+        Console.WriteLine("Generating Key Pair A...");
+        keyA = wolfcrypt.EccMakeKey(keySize);
+        if (keyA == IntPtr.Zero)
+        {
+            throw new Exception("Failed to generate key pair A.");
+        }
+
+        /* Generate Key Pair B */
+        Console.WriteLine("Generating Key Pair B...");
+        keyB = wolfcrypt.EccMakeKey(keySize);
+        if (keyB == IntPtr.Zero)
+        {
+            throw new Exception("Failed to generate key pair B.");
+        }
+        Console.WriteLine("ECC Key generation test passed.");
+
+        /* Export Public Key B to DER format */
+        Console.WriteLine("Exporting Public Key B to DER format...");
+        ret = wolfcrypt.EccExportPublicKeyToDer(keyB, out derKey, true);
+        if (ret < 0 || derKey == null)
+        {
+            throw new Exception("EccExportPublicKeyToDer failed");
+        }
+
+        /* Decode Public Key B from DER format */
+        Console.WriteLine("Decoding Public Key B from DER format...");
+        publicKeyB = wolfcrypt.EccImportPublicKeyFromDer(derKey);
+        if (publicKeyB == IntPtr.Zero)
+        {
+            throw new Exception("Failed to decode public key B from DER format.");
+        }
+        Console.WriteLine("ECC Export and Import test passed.");
+
+        /* Compute Shared Secret using Private Key A and Public Key B */
+        Console.WriteLine("Computing Shared Secret using Private Key A and Public Key B...");
+        byte[] sharedSecretA = new byte[wolfcrypt.ECC_KEY_SIZE];
+        int retA = wolfcrypt.EcdheSharedSecret(keyA, publicKeyB, sharedSecretA);
+        if (retA != 0)
+        {
+            throw new Exception("Failed to compute shared secret A. Error code: " + retA);
+        }
+        Console.WriteLine("ECC shared secret created using private Key A.");
+
+        /* Export Public Key A to DER format */
+        Console.WriteLine("Exporting Public Key A to DER format...");
+        ret = wolfcrypt.EccExportPublicKeyToDer(keyA, out derKey, true);
+        if (ret < 0 || derKey == null)
+        {
+            throw new Exception("EccExportPublicKeyToDer failed");
+        }
+
+        /* Decode Public Key A from DER format */
+        Console.WriteLine("Decoding Public Key A from DER format...");
+        publicKeyA = wolfcrypt.EccImportPublicKeyFromDer(derKey);
+        if (publicKeyA == IntPtr.Zero)
+        {
+            throw new Exception("Failed to decode public key A from DER format.");
+        }
+
+        /* Compute Shared Secret using Private Key B and Public Key A */
+        Console.WriteLine("Computing Shared Secret using Private Key B and Public Key A...");
+        byte[] sharedSecretB = new byte[wolfcrypt.ECC_KEY_SIZE];
+        int retB = wolfcrypt.EcdheSharedSecret(keyB, publicKeyA, sharedSecretB);
+        if (retB != 0)
+        {
+            throw new Exception("Failed to compute shared secret B. Error code: " + retB);
+        }
+        Console.WriteLine("ECC shared secret created using private Key B.");
+
+        /* Compare Shared Secrets */
+        Console.WriteLine("Comparing Shared Secrets...");
+        if (!wolfcrypt.ByteArrayVerify(sharedSecretA, sharedSecretB))
+        {
+            throw new Exception("Shared secrets do not match.");
+        }
+        else
+        {
+            Console.WriteLine("ECC shared secret match.");
+        }
+
+        /* Cleanup */
+        if (keyA != IntPtr.Zero) wolfcrypt.EccFreeKey(keyA);
+        if (keyB != IntPtr.Zero) wolfcrypt.EccFreeKey(keyB);
+        if (publicKeyA != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyA);
+        if (publicKeyB != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyB);
+    } /* END ecdhe_test */
 
     private static void aes_gcm_test()
     {
@@ -758,7 +858,9 @@ public class wolfCrypt_Test_CSharp
 
             ed25519_test(); /* ED25519 test */
 
-            curve25519_test(); /* curve25519 test */
+            curve25519_test(); /* curve25519 shared secret test */
+
+            ecdhe_test(32); /* ECDHE shared secret test */
 
             aes_gcm_test(); /* AES_GCM test */
 
