@@ -104,6 +104,8 @@ namespace wolfSSL.CSharp
         private extern static int wc_ecc_encrypt_ex(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx, int compressed);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_decrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_ecc_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
 
 
         /********************************
@@ -261,10 +263,12 @@ namespace wolfSSL.CSharp
         /********************************
          * ChaCha20
          */
-        /* wc_Chacha_SetIV, wc_Chacha_Process, wc_Chacha_SetKey */
-        /* wc_Poly1305SetKey, wc_Poly1305Update, wc_Poly1305Final */
-        /* wc_ChaCha20Poly1305_Encrypt, wc_ChaCha20Poly1305_Decrypt, wc_ChaCha20Poly1305_Init,
-        wc_ChaCha20Poly1305_UpdateAad, wc_ChaCha20Poly1305_UpdateData, wc_ChaCha20Poly1305_Final */
+        /* wc_Chacha_SetIV, wc_Chacha_Process, wc_Chacha_SetKey,
+         * wc_Poly1305SetKey, wc_Poly1305Update, wc_Poly1305Final,
+         * wc_ChaCha20Poly1305_Encrypt, wc_ChaCha20Poly1305_Decrypt,
+         * wc_ChaCha20Poly1305_Init, wc_ChaCha20Poly1305_UpdateAad,
+         * wc_ChaCha20Poly1305_UpdateData, wc_ChaCha20Poly1305_Final
+         */
 
 
         /********************************
@@ -373,6 +377,7 @@ namespace wolfSSL.CSharp
         public static IntPtr RandomNew()
         {
             IntPtr rng;
+
             try
             {
                 /* Allocate and init new WC_RNG structure */
@@ -385,6 +390,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "random new exception " + e.ToString());
                 rng = IntPtr.Zero;
             }
+
             return rng;
         }
 
@@ -481,6 +487,7 @@ namespace wolfSSL.CSharp
             int ret;
             IntPtr key = IntPtr.Zero;
             IntPtr rng = IntPtr.Zero;
+
             try
             {
                 /* Allocate and init new WC_RNG structure */
@@ -505,6 +512,7 @@ namespace wolfSSL.CSharp
                 EccFreeKey(key);
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -517,6 +525,7 @@ namespace wolfSSL.CSharp
         {
             int ret;
             IntPtr key = IntPtr.Zero;
+
             try
             {
                 key = wc_ecc_key_new(IntPtr.Zero);
@@ -542,6 +551,7 @@ namespace wolfSSL.CSharp
                 EccFreeKey(key); /* make sure its free'd */
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -601,7 +611,6 @@ namespace wolfSSL.CSharp
 
             return ret == 0 ? signedLength : ret;
         }
-
 
         /// <summary>
         /// Verify a signature using ECC
@@ -678,6 +687,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "ECC export private exception " + e.ToString());
                 ret = EXCEPTION_E;
             }
+
             return ret;
         }
 
@@ -711,6 +721,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "ECC export public exception " + e.ToString());
                 ret = EXCEPTION_E;
             }
+
             return ret;
         }
 
@@ -723,6 +734,7 @@ namespace wolfSSL.CSharp
         {
             int ret;
             IntPtr key = IntPtr.Zero;
+
             try
             {
                 key = wc_ecc_key_new(IntPtr.Zero);
@@ -743,6 +755,7 @@ namespace wolfSSL.CSharp
                 EccFreeKey(key);
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -1155,6 +1168,35 @@ namespace wolfSSL.CSharp
         }
 
         /// <summary>
+        /// Generate a shared secret using ECC
+        /// </summary>
+        /// <param name="privateKey">ECC private key</param>
+        /// <param name="publicKey">ECC public key</param>
+        /// <param name="secret">Buffer to receive the shared secret</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int EcdheSharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret)
+        {
+            int ret = -1;
+            int secretLength = secret.Length;
+
+            try
+            {
+                ret = wc_ecc_shared_secret(privateKey, publicKey, secret, ref secretLength);
+                if (ret != 0)
+                {
+                    throw new Exception("Failed to compute ECC shared secret. Error code: " + ret);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC shared secret exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
         /// Free the ECIES context.
         /// </summary>
         /// <param name="ctx">Pointer to the ECIES context to free.</param>
@@ -1214,7 +1256,8 @@ namespace wolfSSL.CSharp
         /// <summary>
         /// Generate a new RSA private/public key pair
         /// </summary>
-        /// <param name="heap">Pointer to the heap for memory allocation (use IntPtr.Zero if not applicable)</param>
+        /// <param name="heap">Pointer to the heap for memory allocation
+        /// (use IntPtr.Zero if not applicable)</param>
         /// <param name="devId">Device ID (if applicable, otherwise use 0)</param>
         /// <param name="keysize">Key size in bits (example: 2048)</param>
         /// <param name="exponent">Exponent for RSA key generation (default is 65537)</param>
@@ -1224,6 +1267,7 @@ namespace wolfSSL.CSharp
             int ret;
             IntPtr key = IntPtr.Zero;
             IntPtr rng = IntPtr.Zero;
+
             try
             {
                 /* Allocate and init new RSA key structure */
@@ -1254,6 +1298,7 @@ namespace wolfSSL.CSharp
                 if (key != IntPtr.Zero) RsaFreeKey(key);
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -1261,7 +1306,6 @@ namespace wolfSSL.CSharp
         {
             return RsaMakeKey(heap, devId, keysize, 65537);
         }
-
 
         /// <summary>
         /// Import an RSA private key from ASN.1 buffer
@@ -1272,6 +1316,7 @@ namespace wolfSSL.CSharp
         {
             int ret;
             IntPtr key = IntPtr.Zero;
+
             try
             {
                 key = wc_NewRsaKey(IntPtr.Zero, INVALID_DEVID);
@@ -1297,6 +1342,7 @@ namespace wolfSSL.CSharp
                 RsaFreeKey(key); /* make sure its free'd */
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -1515,6 +1561,7 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int Ed25519SignMsg(byte[] inMsg, out byte[] outMsg, IntPtr key)
         {
+            int ret;
             IntPtr inMsgPtr = Marshal.AllocHGlobal(inMsg.Length);
             IntPtr outMsgPtr = Marshal.AllocHGlobal(ED25519_SIG_SIZE);
             outMsg = null;
@@ -1523,13 +1570,12 @@ namespace wolfSSL.CSharp
             {
                 Marshal.Copy(inMsg, 0, inMsgPtr, inMsg.Length);
                 uint outMsgSize = (uint)ED25519_SIG_SIZE;
-                int result = wc_ed25519_sign_msg(inMsgPtr, (uint)inMsg.Length, outMsgPtr, ref outMsgSize, key);
-                if (result == 0)
+                ret = wc_ed25519_sign_msg(inMsgPtr, (uint)inMsg.Length, outMsgPtr, ref outMsgSize, key);
+                if (ret == 0)
                 {
                     outMsg = new byte[outMsgSize];
                     Marshal.Copy(outMsgPtr, outMsg, 0, (int)outMsgSize);
                 }
-                return result;
             }
             finally
             {
@@ -1537,6 +1583,8 @@ namespace wolfSSL.CSharp
                 if (inMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(inMsgPtr);
                 if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
             }
+
+            return ret;
         }
 
         /// <summary>
@@ -1584,6 +1632,7 @@ namespace wolfSSL.CSharp
                 if (sigPtr != IntPtr.Zero) Marshal.FreeHGlobal(sigPtr);
                 if (msgPtr != IntPtr.Zero) Marshal.FreeHGlobal(msgPtr);
             }
+
             return ret;
         }
 
@@ -1792,21 +1841,21 @@ namespace wolfSSL.CSharp
     	/// </summary>
     	/// <param name="key">Buffer to receive the initialized key</param>
     	/// <returns>0 on success, otherwise an error code</returns>
-    	public static int EdInitKey(out IntPtr key)
+    	public static int Ed25519InitKey(out IntPtr key)
         {
             key = IntPtr.Zero;
             try
             {
                 key = Marshal.AllocHGlobal(ED25519_SIG_SIZE);
-                int result = wc_ed25519_init(key);
+                int ret = wc_ed25519_init(key);
 
-                if (result != 0)
+                if (ret != 0)
                 {
                     Marshal.FreeHGlobal(key);
                     key = IntPtr.Zero;
                 }
 
-                return result;
+                return ret;
             }
             catch
             {
@@ -1817,7 +1866,6 @@ namespace wolfSSL.CSharp
             }
         }
 
-
         /// <summary>
         /// Import a public key into an ED25519 key structure.
         /// </summary>
@@ -1825,8 +1873,9 @@ namespace wolfSSL.CSharp
         /// <param name="inLen">Length of the public key</param>
         /// <param name="key">Buffer to receive the imported key</param>
         /// <returns>0 on success, otherwise an error code</returns>
-        public static int EdImportPublic(byte[] inMsg, uint inLen, out IntPtr key)
+        public static int Ed25519ImportPublic(byte[] inMsg, uint inLen, out IntPtr key)
         {
+            int ret;
             key = IntPtr.Zero;
             IntPtr inMsgPtr = IntPtr.Zero;
 
@@ -1846,13 +1895,11 @@ namespace wolfSSL.CSharp
                 }
                 Marshal.Copy(inMsg, 0, inMsgPtr, inMsg.Length);
 
-                int result = wc_ed25519_import_public(inMsgPtr, inLen, key);
-                if (result != 0)
+                ret = wc_ed25519_import_public(inMsgPtr, inLen, key);
+                if (ret != 0)
                 {
-                    return result;
+                    return ret;
                 }
-
-                return result;
             }
             catch (Exception ex)
             {
@@ -1866,6 +1913,8 @@ namespace wolfSSL.CSharp
                 if (inMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(inMsgPtr);
                 if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
             }
+
+            return ret;
         }
 
         /// <summary>
@@ -1875,15 +1924,17 @@ namespace wolfSSL.CSharp
         /// <param name="outMsg">Buffer to receive the exported public key</param>
         /// <param name="outLen">Length of the exported public key</param>
         /// <returns>0 on success, otherwise an error code</returns>
-        public static int EdExportPublic(IntPtr key, byte[] outMsg, out uint outLen)
+        public static int Ed25519ExportPublic(IntPtr key, byte[] outMsg, out uint outLen)
         {
+            int ret;
             IntPtr outMsgPtr = IntPtr.Zero;
+
             try
             {
                 outMsgPtr = Marshal.AllocHGlobal(outMsg.Length);
                 outLen = (uint)outMsg.Length;
-                int result = wc_ed25519_export_public(key, outMsgPtr, ref outLen);
-                if (result == 0)
+                ret = wc_ed25519_export_public(key, outMsgPtr, ref outLen);
+                if (ret == 0)
                 {
                     Marshal.Copy(outMsgPtr, outMsg, 0, (int)outLen);
                 }
@@ -1891,13 +1942,14 @@ namespace wolfSSL.CSharp
                 {
                     outLen = 0;
                 }
-                return result;
             }
             finally
             {
                 /* Cleanup */
                 if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
             }
+
+            return ret;
         }
 
         /// <summary>
@@ -1907,15 +1959,17 @@ namespace wolfSSL.CSharp
         /// <param name="outMsg">Buffer to receive the exported private key</param>
         /// <param name="outLen">Length of the exported private key</param>
         /// <returns>0 on success, otherwise an error code</returns>
-        public static int EdExportPrivate(IntPtr key, byte[] outMsg, out uint outLen)
+        public static int Ed25519ExportPrivate(IntPtr key, byte[] outMsg, out uint outLen)
         {
+            int ret;
             IntPtr outMsgPtr = IntPtr.Zero;
+
             try
             {
                 outMsgPtr = Marshal.AllocHGlobal(outMsg.Length);
                 outLen = (uint)outMsg.Length;
-                int result = wc_ed25519_export_private(key, outMsgPtr, ref outLen);
-                if (result == 0)
+                ret = wc_ed25519_export_private(key, outMsgPtr, ref outLen);
+                if (ret == 0)
                 {
                     Marshal.Copy(outMsgPtr, outMsg, 0, (int)outLen);
                 }
@@ -1923,13 +1977,14 @@ namespace wolfSSL.CSharp
                 {
                     outLen = 0;
                 }
-                return result;
             }
             finally
             {
                 /* Cleanup */
                 if (outMsgPtr != IntPtr.Zero) Marshal.FreeHGlobal(outMsgPtr);
             }
+
+            return ret;
         }
 
         /// <summary>
@@ -1941,22 +1996,25 @@ namespace wolfSSL.CSharp
         /// <returns>0 on success, otherwise an error code</returns>
         public static int Ed25519MakePublic(IntPtr key, byte[] pubKey, out uint pubKeySz)
         {
+            int ret;
             IntPtr pubKeyPtr = Marshal.AllocHGlobal(pubKey.Length);
+
             try
             {
                 pubKeySz = (uint)pubKey.Length;
-                int result = wc_ed25519_make_public(key, pubKeyPtr, pubKeySz);
-                if (result == 0)
+                ret = wc_ed25519_make_public(key, pubKeyPtr, pubKeySz);
+                if (ret == 0)
                 {
                     Marshal.Copy(pubKeyPtr, pubKey, 0, (int)pubKeySz);
                 }
-                return result;
             }
             finally
             {
                 /* Cleanup */
                 if (pubKeyPtr != IntPtr.Zero) Marshal.FreeHGlobal(pubKeyPtr);
             }
+
+            return ret;
         }
 
         /// <summary>
@@ -1964,7 +2022,7 @@ namespace wolfSSL.CSharp
         /// </summary>
         /// <param name="key">ED25519 key structure</param>
         /// <returns>Size of the key, or an error code if failed</returns>
-        public static int EdGetKeySize(IntPtr key)
+        public static int Ed25519GetKeySize(IntPtr key)
         {
             return wc_ed25519_size(key);
         }
@@ -2191,6 +2249,7 @@ namespace wolfSSL.CSharp
         {
             int ret = -1;
             int secretLength = secret.Length;
+
             try
             {
                 ret = wc_curve25519_shared_secret(privateKey, publicKey, secret, ref secretLength);
@@ -2204,6 +2263,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "Curve25519 shared secret exception " + e.ToString());
                 ret = EXCEPTION_E;
             }
+
             return ret;
         }
 
@@ -2215,6 +2275,7 @@ namespace wolfSSL.CSharp
         public static IntPtr Curve25519ImportPrivateKey(byte[] privateKey)
         {
             IntPtr key = IntPtr.Zero;
+
             try
             {
                 key = Marshal.AllocHGlobal(privateKey.Length);
@@ -2232,6 +2293,7 @@ namespace wolfSSL.CSharp
                 if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -2243,6 +2305,7 @@ namespace wolfSSL.CSharp
         public static IntPtr Curve25519ImportPublicKey(byte[] publicKey)
         {
             IntPtr key = IntPtr.Zero;
+
             try
             {
                 key = Marshal.AllocHGlobal(publicKey.Length);
@@ -2260,6 +2323,7 @@ namespace wolfSSL.CSharp
                 if (key != IntPtr.Zero) Marshal.FreeHGlobal(key);
                 key = IntPtr.Zero;
             }
+
             return key;
         }
 
@@ -2346,6 +2410,7 @@ namespace wolfSSL.CSharp
             {
                 Console.WriteLine($"AES context creation failed: {e.Message}");
             }
+
             return aesPtr;
         }
 
@@ -2414,6 +2479,7 @@ namespace wolfSSL.CSharp
                 if (keyPtr != IntPtr.Zero) Marshal.FreeHGlobal(keyPtr);
                 if (ivPtr != IntPtr.Zero) Marshal.FreeHGlobal(ivPtr);
             }
+
             return ret;
         }
 
@@ -2480,6 +2546,7 @@ namespace wolfSSL.CSharp
                 if (authTagPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
                 if (addAuthPtr != IntPtr.Zero) Marshal.FreeHGlobal(addAuthPtr);
             }
+
             return ret;
         }
 
@@ -2546,6 +2613,7 @@ namespace wolfSSL.CSharp
                 if (authTagPtr != IntPtr.Zero) Marshal.FreeHGlobal(authTagPtr);
                 if (addAuthPtr != IntPtr.Zero) Marshal.FreeHGlobal(addAuthPtr);
             }
+
             return ret;
         }
 
@@ -2591,6 +2659,7 @@ namespace wolfSSL.CSharp
             {
                 log(ERROR_LOG, "HashNew Exception: " + e.ToString());
             }
+
             return hash;
         }
 
@@ -2603,6 +2672,7 @@ namespace wolfSSL.CSharp
         public static int InitHash(IntPtr hash, uint hashType)
         {
             int ret = -1;
+
             try
             {
                 /* Check hash */
@@ -2621,6 +2691,7 @@ namespace wolfSSL.CSharp
                 log(ERROR_LOG, "InitHash Exception: " + e.ToString());
                 if (hash != IntPtr.Zero) wc_HashFree(hash, hashType);
             }
+
             return ret;
         }
 
@@ -2726,6 +2797,7 @@ namespace wolfSSL.CSharp
         public static int HashFree(IntPtr hash, uint hashType)
         {
             int ret = -1;
+
             try
             {
                 /* Check hash */
@@ -2743,6 +2815,7 @@ namespace wolfSSL.CSharp
             {
                 log(ERROR_LOG, "HashFree Exception: " + e.ToString());
             }
+
             return ret;
         }
 

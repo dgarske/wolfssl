@@ -2,8 +2,9 @@
 
 This directory contains the CSharp wrapper for the wolfSSL TLS layer with examples.
 
-* `wolfSSL_CSharp`: wolfSSL TLS layer wrappers (library)
-* `wolfCrypt-Test`: wolfCrype layer wrapper testing.
+* `wolfSSL_CSharp`: wolfSSL TLS layer wrappers (library).
+* `wolfCrypt-Test`: wolfCrypt layer wrapper testing.
+* `user_settings.h`: wolfCrypt wrapper user settings.
 
 Examples:
 * `wolfSSL-DTLS-PSK-Server`
@@ -27,11 +28,6 @@ need to open a new solution `wolfSSL_CSharp.sln` located in `wrapper\CSharp\wolf
 Select the CPU type, configuration, and target file.
 select `Build` and either `Rebuild Solution` or `Build Solution`.
 
-If you have problems with the .dll you can change the output path by going into
-the Solution Explorer, left clicking the solution you wish to configure, select
-Properties and then Output Directory.
-The default is, `bin\$(Configuration)\$(Platform)\`
-
 ## Linux (Ubuntu) using mono
 
 Prerequisites for linux:
@@ -46,7 +42,7 @@ apt-get install mono-complete
 
 ```
 ./autogen.sh
-./configure --enable-keygen --enable--eccencrypt --enable-ed25519 --enable-curve25519 --enable-aesgcm
+./configure --enable-keygen --enable-eccencrypt --enable-ed25519 --enable-curve25519 --enable-aesgcm
 make
 make check
 sudo make install
