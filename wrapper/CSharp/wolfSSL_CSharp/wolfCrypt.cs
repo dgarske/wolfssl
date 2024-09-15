@@ -58,6 +58,8 @@ namespace wolfSSL.CSharp
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static void wc_ecc_key_free(IntPtr key);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_ecc_set_rng(IntPtr key, IntPtr rng);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_make_key_ex(IntPtr rng, int keysize, IntPtr key, int curve_id);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_sign_hash(IntPtr hashPtr, uint hashlen, IntPtr sigPtr, IntPtr siglen, IntPtr rng, IntPtr key);
@@ -104,6 +106,11 @@ namespace wolfSSL.CSharp
         private extern static int wc_ecc_encrypt_ex(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx, int compressed);
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_decrypt(IntPtr privKey, IntPtr pubKey, IntPtr msg, uint msgSz, IntPtr outBuffer, IntPtr outSz, IntPtr ctx);
+
+
+        /********************************
+         * ECDHE
+         */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
         private extern static int wc_ecc_shared_secret(IntPtr privateKey, IntPtr publicKey, byte[] outSharedSecret, ref int outlen);
 
@@ -483,11 +490,10 @@ namespace wolfSSL.CSharp
         /// </summary>
         /// <param name="keysize">Key size in bytes (example: SECP256R1 = 32)</param>
         /// <returns>Allocated ECC key structure or null</returns>
-        public static IntPtr EccMakeKey(int keysize)
+        public static IntPtr EccMakeKey(int keysize, IntPtr rng)
         {
             int ret;
             IntPtr key = IntPtr.Zero;
-            IntPtr rng = IntPtr.Zero;
 
             try
             {
@@ -495,26 +501,57 @@ namespace wolfSSL.CSharp
                 key = wc_ecc_key_new(IntPtr.Zero);
                 if (key != IntPtr.Zero)
                 {
-                    rng = RandomNew();
                     ret = wc_ecc_make_key_ex(rng, keysize, key, 0); /* 0=use default curve */
                     if (ret != 0)
                     {
                         EccFreeKey(key);
                         key = IntPtr.Zero;
                     }
-                    RandomFree(rng);
-                    rng = IntPtr.Zero;
                 }
             }
             catch (Exception e)
             {
                 log(ERROR_LOG, "ECC make key exception " + e.ToString());
-                RandomFree(rng);
+
                 EccFreeKey(key);
                 key = IntPtr.Zero;
             }
 
             return key;
+        }
+
+        /// <summary>
+        /// Sets the ECC rng structure
+        /// </summary>
+        /// <param name="key">Supplied key as a pointer</param>
+        /// <param name="rng">rng context as a pointer</param>
+        /// <returns>Returns 0 on success</returns>
+        public static int EccSetRng(IntPtr key, IntPtr rng)
+        {
+            int ret = 0;
+
+            try
+            {
+                /* Check */
+                if (key == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "Invalid key or rng pointer.");
+                    return MEMORY_E;
+                }
+
+                /* Set ECC rng */
+                ret = wc_ecc_set_rng(key, rng);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "ECC set rng failed returned:" + ret);
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC set rng exception " + e.ToString());
+            }
+
+            return ret;
         }
 
         /// <summary>
@@ -1169,35 +1206,6 @@ namespace wolfSSL.CSharp
         }
 
         /// <summary>
-        /// Generate a shared secret using ECC
-        /// </summary>
-        /// <param name="privateKey">ECC private key</param>
-        /// <param name="publicKey">ECC public key</param>
-        /// <param name="secret">Buffer to receive the shared secret</param>
-        /// <returns>0 on success, otherwise an error code</returns>
-        public static int EcdheSharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret)
-        {
-            int ret;
-            int secretLength = secret.Length;
-
-            try
-            {
-                ret = wc_ecc_shared_secret(privateKey, publicKey, secret, ref secretLength);
-                if (ret != 0)
-                {
-                    throw new Exception("Failed to compute ECC shared secret. Error code: " + ret);
-                }
-            }
-            catch (Exception e)
-            {
-                log(ERROR_LOG, "ECC shared secret exception " + e.ToString());
-                ret = EXCEPTION_E;
-            }
-
-            return ret;
-        }
-
-        /// <summary>
         /// Free the ECIES context.
         /// </summary>
         /// <param name="ctx">Pointer to the ECIES context to free.</param>
@@ -1248,6 +1256,59 @@ namespace wolfSSL.CSharp
             REQ_RESP_SERVER = 2
         }
         /* END ECIES */
+
+
+        /***********************************************************************
+         * ECDHE
+         **********************************************************************/
+
+        /// <summary>
+        /// Generate a shared secret using ECC
+        /// </summary>
+        /// <param name="privateKey">ECC private key</param>
+        /// <param name="publicKey">ECC public key</param>
+        /// <param name="secret">Buffer to receive the shared secret</param>
+        /// <returns>0 on success, otherwise an error code</returns>
+        public static int EcdheSharedSecret(IntPtr privateKey, IntPtr publicKey, byte[] secret, IntPtr rng)
+        {
+            int ret;
+            int secretLength = secret.Length;
+
+            try
+            {
+                /* set RNG for Public Key */
+                ret = EccSetRng(privateKey, rng);
+                if (ret != 0)
+                {
+                    throw new Exception("Failed to set Public Key RNG Error code: " + ret);
+                }
+
+                /* set RNG for Private Key */
+                ret = EccSetRng(publicKey, rng);
+                if (ret != 0)
+                {
+                    throw new Exception("Failed to set Private Key RNG. Error code: " + ret);
+                }
+
+                /* Generate shared secret */
+                if (privateKey != IntPtr.Zero || publicKey != IntPtr.Zero)
+                {
+                    ret = wc_ecc_shared_secret(privateKey, publicKey, secret, ref secretLength);
+                    if (ret != 0)
+                    {
+                        throw new Exception("Failed to compute ECC shared secret. Error code: " + ret);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "ECC shared secret exception " + e.ToString());
+                ret = EXCEPTION_E;
+            }
+
+            return ret;
+        }
+        /* END ECDHE */
 
 
         /***********************************************************************

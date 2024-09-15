@@ -68,15 +68,23 @@ public class wolfCrypt_Test_CSharp
     private static void ecc_test(string hashAlgorithm, int keySize)
     {
         int ret;
+        IntPtr rng = IntPtr.Zero;
         IntPtr PrivKey = IntPtr.Zero;
         IntPtr PubKey = IntPtr.Zero;
         IntPtr key = IntPtr.Zero;
 
         Console.WriteLine("\nStarting ECC" + (keySize*8) + " test for " + hashAlgorithm + "...");
 
+        /* Create a new RNG context */
+        rng = wolfcrypt.RandomNew();
+        if (rng == IntPtr.Zero)
+        {
+            throw new Exception("RNG initialization failed.");
+        }
+
         /* Generate ECC Key Pair */
         Console.WriteLine("Testing ECC Key Generation...");
-        key = wolfcrypt.EccMakeKey(keySize);
+        key = wolfcrypt.EccMakeKey(keySize, rng);
         if (key == IntPtr.Zero)
         {
             throw new Exception("EccMakeKey failed");
@@ -167,6 +175,7 @@ public class wolfCrypt_Test_CSharp
         if (key != IntPtr.Zero) wolfcrypt.EccFreeKey(key);
         if (PubKey != IntPtr.Zero) wolfcrypt.EccFreeKey(PubKey);
         if (PrivKey != IntPtr.Zero) wolfcrypt.EccFreeKey(PrivKey);
+        if (rng != IntPtr.Zero) wolfcrypt.RandomFree(rng);
     } /* END ecc_test */
 
     private static void ecies_test(int keySize)
@@ -200,8 +209,8 @@ public class wolfCrypt_Test_CSharp
             }
 
             /* Initialize keys */
-            a = wolfcrypt.EccMakeKey(keySize);
-            b = wolfcrypt.EccMakeKey(keySize);
+            a = wolfcrypt.EccMakeKey(keySize, rng);
+            b = wolfcrypt.EccMakeKey(keySize, rng);
             if (a == IntPtr.Zero || b == IntPtr.Zero)
             {
                 throw new Exception("Key generation failed.");
@@ -269,6 +278,116 @@ public class wolfCrypt_Test_CSharp
             if (rng != IntPtr.Zero) wolfcrypt.RandomFree(rng);
         }
     } /* END ecies_test */
+
+    private static void ecdhe_test(int keySize)
+    {
+        int ret;
+        IntPtr rng = IntPtr.Zero;
+        IntPtr keyA = IntPtr.Zero;
+        IntPtr keyB = IntPtr.Zero;
+        IntPtr publicKeyA = IntPtr.Zero;
+        IntPtr publicKeyB = IntPtr.Zero;
+        byte[] derKey;
+
+        Console.WriteLine("\nStarting ECDHE shared secret test for " + keySize + " key size...");
+
+        /* Create RNG */
+        Console.WriteLine("Generating RNG...");
+        rng = RandomNew();
+        if (rng == IntPtr.Zero)
+        {
+            throw new Exception("Failed to generate RNG.");
+        }
+        Console.WriteLine("RNG generation test passed.");
+
+        /* Generate Key Pair A */
+        Console.WriteLine("Generating Key Pair A...");
+        keyA = wolfcrypt.EccMakeKey(keySize, rng);
+        if (keyA == IntPtr.Zero)
+        {
+            throw new Exception("Failed to generate key pair A.");
+        }
+
+        /* Generate Key Pair B */
+        Console.WriteLine("Generating Key Pair B...");
+        keyB = wolfcrypt.EccMakeKey(keySize, rng);
+        if (keyB == IntPtr.Zero)
+        {
+            throw new Exception("Failed to generate key pair B.");
+        }
+        Console.WriteLine("ECC Key generation test passed.");
+
+        /* Export Public Key B to DER format */
+        Console.WriteLine("Exporting Public Key B to DER format...");
+        ret = wolfcrypt.EccExportPublicKeyToDer(keyB, out derKey, true);
+        if (ret < 0 || derKey == null)
+        {
+            throw new Exception("EccExportPublicKeyToDer failed");
+        }
+
+        /* Decode Public Key B from DER format */
+        Console.WriteLine("Decoding Public Key B from DER format...");
+        publicKeyB = wolfcrypt.EccImportPublicKeyFromDer(derKey);
+        if (publicKeyB == IntPtr.Zero)
+        {
+            throw new Exception("Failed to decode public key B from DER format.");
+        }
+        Console.WriteLine("ECC Export and Import test passed.");
+
+        /* Compute Shared Secret using Private Key A and Public Key B */
+        Console.WriteLine("Computing Shared Secret using Private Key A and Public Key B...");
+        byte[] sharedSecretA = new byte[keySize];
+        int retA = wolfcrypt.EcdheSharedSecret(keyA, publicKeyB, sharedSecretA, rng);
+        if (retA != 0)
+        {
+            throw new Exception("Failed to compute shared secret A. Error code: " + retA);
+        }
+        Console.WriteLine("ECC shared secret created using private Key A.");
+
+        /* Export Public Key A to DER format */
+        Console.WriteLine("Exporting Public Key A to DER format...");
+        ret = wolfcrypt.EccExportPublicKeyToDer(keyA, out derKey, true);
+        if (ret < 0 || derKey == null)
+        {
+            throw new Exception("EccExportPublicKeyToDer failed");
+        }
+
+        /* Decode Public Key A from DER format */
+        Console.WriteLine("Decoding Public Key A from DER format...");
+        publicKeyA = wolfcrypt.EccImportPublicKeyFromDer(derKey);
+        if (publicKeyA == IntPtr.Zero)
+        {
+            throw new Exception("Failed to decode public key A from DER format.");
+        }
+
+        /* Compute Shared Secret using Private Key B and Public Key A */
+        Console.WriteLine("Computing Shared Secret using Private Key B and Public Key A...");
+        byte[] sharedSecretB = new byte[keySize];
+        int retB = wolfcrypt.EcdheSharedSecret(keyB, publicKeyA, sharedSecretB, rng);
+        if (retB != 0)
+        {
+            throw new Exception("Failed to compute shared secret B. Error code: " + retB);
+        }
+        Console.WriteLine("ECC shared secret created using private Key B.");
+
+        /* Compare Shared Secrets */
+        Console.WriteLine("Comparing Shared Secrets...");
+        if (!wolfcrypt.ByteArrayVerify(sharedSecretA, sharedSecretB))
+        {
+            throw new Exception("Shared secrets do not match.");
+        }
+        else
+        {
+            Console.WriteLine("ECC shared secret match.");
+        }
+
+        /* Cleanup */
+        if (keyA != IntPtr.Zero) wolfcrypt.EccFreeKey(keyA);
+        if (keyB != IntPtr.Zero) wolfcrypt.EccFreeKey(keyB);
+        if (publicKeyA != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyA);
+        if (publicKeyB != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyB);
+        if (rng != IntPtr.Zero) wolfcrypt.RandomFree(rng);
+    } /* END ecdhe_test */
 
     private static void rsa_test(string hashAlgorithm, int keySize)
     {
@@ -521,105 +640,6 @@ public class wolfCrypt_Test_CSharp
         if (publicKeyB != IntPtr.Zero) wolfcrypt.Curve25519FreeKey(publicKeyB);
     } /* END curve25519_test */
 
-    private static void ecdhe_test(int keySize)
-    {
-        int ret;
-        IntPtr keyA = IntPtr.Zero;
-        IntPtr keyB = IntPtr.Zero;
-        IntPtr publicKeyA = IntPtr.Zero;
-        IntPtr publicKeyB = IntPtr.Zero;
-        byte[] derKey;
-
-        Console.WriteLine("\nStarting ECDHE shared secret test...");
-
-        /* Generate Key Pair A */
-        Console.WriteLine("Generating Key Pair A...");
-        keyA = wolfcrypt.EccMakeKey(keySize);
-        if (keyA == IntPtr.Zero)
-        {
-            throw new Exception("Failed to generate key pair A.");
-        }
-
-        /* Generate Key Pair B */
-        Console.WriteLine("Generating Key Pair B...");
-        keyB = wolfcrypt.EccMakeKey(keySize);
-        if (keyB == IntPtr.Zero)
-        {
-            throw new Exception("Failed to generate key pair B.");
-        }
-        Console.WriteLine("ECC Key generation test passed.");
-
-        /* Export Public Key B to DER format */
-        Console.WriteLine("Exporting Public Key B to DER format...");
-        ret = wolfcrypt.EccExportPublicKeyToDer(keyB, out derKey, true);
-        if (ret < 0 || derKey == null)
-        {
-            throw new Exception("EccExportPublicKeyToDer failed");
-        }
-
-        /* Decode Public Key B from DER format */
-        Console.WriteLine("Decoding Public Key B from DER format...");
-        publicKeyB = wolfcrypt.EccImportPublicKeyFromDer(derKey);
-        if (publicKeyB == IntPtr.Zero)
-        {
-            throw new Exception("Failed to decode public key B from DER format.");
-        }
-        Console.WriteLine("ECC Export and Import test passed.");
-
-        /* Compute Shared Secret using Private Key A and Public Key B */
-        Console.WriteLine("Computing Shared Secret using Private Key A and Public Key B...");
-        byte[] sharedSecretA = new byte[wolfcrypt.ECC_KEY_SIZE];
-        int retA = wolfcrypt.EcdheSharedSecret(keyA, publicKeyB, sharedSecretA);
-        if (retA != 0)
-        {
-            throw new Exception("Failed to compute shared secret A. Error code: " + retA);
-        }
-        Console.WriteLine("ECC shared secret created using private Key A.");
-
-        /* Export Public Key A to DER format */
-        Console.WriteLine("Exporting Public Key A to DER format...");
-        ret = wolfcrypt.EccExportPublicKeyToDer(keyA, out derKey, true);
-        if (ret < 0 || derKey == null)
-        {
-            throw new Exception("EccExportPublicKeyToDer failed");
-        }
-
-        /* Decode Public Key A from DER format */
-        Console.WriteLine("Decoding Public Key A from DER format...");
-        publicKeyA = wolfcrypt.EccImportPublicKeyFromDer(derKey);
-        if (publicKeyA == IntPtr.Zero)
-        {
-            throw new Exception("Failed to decode public key A from DER format.");
-        }
-
-        /* Compute Shared Secret using Private Key B and Public Key A */
-        Console.WriteLine("Computing Shared Secret using Private Key B and Public Key A...");
-        byte[] sharedSecretB = new byte[wolfcrypt.ECC_KEY_SIZE];
-        int retB = wolfcrypt.EcdheSharedSecret(keyB, publicKeyA, sharedSecretB);
-        if (retB != 0)
-        {
-            throw new Exception("Failed to compute shared secret B. Error code: " + retB);
-        }
-        Console.WriteLine("ECC shared secret created using private Key B.");
-
-        /* Compare Shared Secrets */
-        Console.WriteLine("Comparing Shared Secrets...");
-        if (!wolfcrypt.ByteArrayVerify(sharedSecretA, sharedSecretB))
-        {
-            throw new Exception("Shared secrets do not match.");
-        }
-        else
-        {
-            Console.WriteLine("ECC shared secret match.");
-        }
-
-        /* Cleanup */
-        if (keyA != IntPtr.Zero) wolfcrypt.EccFreeKey(keyA);
-        if (keyB != IntPtr.Zero) wolfcrypt.EccFreeKey(keyB);
-        if (publicKeyA != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyA);
-        if (publicKeyB != IntPtr.Zero) wolfcrypt.EccFreeKey(publicKeyB);
-    } /* END ecdhe_test */
-
     private static void aes_gcm_test()
     {
         IntPtr aes = IntPtr.Zero;
@@ -844,25 +864,43 @@ public class wolfCrypt_Test_CSharp
 
             random_test();
 
+            Console.WriteLine("\nStarting ECC tests");
+
             ecc_test("SHA256", 32); /* Uses SHA-256 (32 byte hash) */
             ecc_test("SHA384", 32); /* Uses SHA-384 (32 byte hash) */
             ecc_test("SHA512", 32); /* Uses SHA-512 (32 byte hash) */
+
+            Console.WriteLine("\nStarting ECIES tests");
 
             ecies_test(32); /* ECIES test (32 byte key size) */
             ecies_test(48); /* ECIES test (48 byte key size) */
             ecies_test(66); /* ECIES test (66 byte key size) */
 
+            Console.WriteLine("\nStarting ECDHE tests");
+
+            ecdhe_test(32); /* ECDHE shared secret test (32 byte key size) */
+            ecdhe_test(48); /* ECDHE shared secret test (48 byte key size) */
+            ecdhe_test(66); /* ECDHE shared secret test (66 byte key size) */
+
+            Console.WriteLine("\nStarting RSA tests");
+
             rsa_test("SHA256", 2048); /* Uses SHA-256 (2048 bit hash) */
             rsa_test("SHA384", 2048); /* Uses SHA-384 (2048 bit hash) */
             rsa_test("SHA512", 2048); /* Uses SHA-512 (2048 bit hash) */
 
+            Console.WriteLine("\nStarting ED25519 test");
+
             ed25519_test(); /* ED25519 test */
+
+            Console.WriteLine("\nStarting curve25519 test");
 
             curve25519_test(); /* curve25519 shared secret test */
 
-            ecdhe_test(32); /* ECDHE shared secret test */
+            Console.WriteLine("\nStarting AES-GCM test");
 
             aes_gcm_test(); /* AES_GCM test */
+
+            Console.WriteLine("\nStarting HASH tests");
 
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA256); /* SHA-256 HASH test */
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA384); /* SHA-384 HASH test */
