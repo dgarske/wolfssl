@@ -13895,7 +13895,9 @@ int wc_ecc_ctx_set_kdf_salt(ecEncCtx* ctx, const byte* salt, word32 sz)
         ctx->kdfSalt = ctx->serverSalt;
     }
 
-    XMEMCPY((byte*)ctx->kdfSalt, salt, sz);
+    if (salt != NULL) {
+        XMEMCPY((byte*)ctx->kdfSalt, salt, sz);
+    }
     ctx->kdfSaltSz = sz;
 
     return 0;
