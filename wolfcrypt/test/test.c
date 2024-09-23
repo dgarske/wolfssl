@@ -5923,6 +5923,9 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
     WOLFSSL_ENTER("hash_test");
 
     /* Parameter Validation testing. */
+    ret = wc_HashNew(WC_HASH_TYPE_SHA256, HEAP_HINT, devId);
+    if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
+        return WC_TEST_RET_ENC_EC(ret);
     ret = wc_HashInit(NULL, WC_HASH_TYPE_SHA256);
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
@@ -5947,6 +5950,9 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
 
     /* Try invalid hash algorithms. */
     for (i = 0; i < (int)(sizeof(typesBad)/sizeof(*typesBad)); i++) {
+        ret = wc_HashNew(&typesBad[i], HEAP_HINT, devId);
+        if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
+            return WC_TEST_RET_ENC_I(i);
         ret = wc_HashInit(&hash, typesBad[i]);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return WC_TEST_RET_ENC_I(i);
@@ -5967,6 +5973,9 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
             exp_ret = HASH_TYPE_E;
             j++;
         }
+        ret = wc_HashNew(typesGood[i], HEAP_HINT, devId);
+        if (ret != exp_ret)
+            return WC_TEST_RET_ENC_I(i);
         ret = wc_HashInit(&hash, typesGood[i]);
         if (ret != exp_ret)
             return WC_TEST_RET_ENC_I(i);
@@ -9040,10 +9049,12 @@ EVP_TEST_END:
     WOLFSSL_ENTER("aesofb_test");
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(-1, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(-1, out);
 #endif
 #endif
@@ -9441,10 +9452,12 @@ EVP_TEST_END:
 #endif /* WOLFSSL_AES_256 */
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #endif
@@ -9739,10 +9752,12 @@ EVP_TEST_END:
 #endif /* WOLFSSL_AES_256 */
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #endif
@@ -9998,10 +10013,12 @@ EVP_TEST_END:
 #endif
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #endif
@@ -13564,10 +13581,12 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t aes_test(void)
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
 #if defined(HAVE_AES_CBC) || defined(WOLFSSL_AES_COUNTER) || \
     defined(WOLFSSL_AES_DIRECT)
+    enc = wc_AesNew(HEAP_HINT, devId);
     if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #if defined(HAVE_AES_DECRYPT) || defined(WOLFSSL_AES_COUNTER)
+    dec = wc_AesNew(HEAP_HINT, devId);
     if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
@@ -14121,10 +14140,12 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t aes192_test(void)
     WOLFSSL_ENTER("aes192_test");
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #endif
@@ -14257,10 +14278,12 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t aes256_test(void)
     WOLFSSL_ENTER("aes256_test");
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #ifdef HAVE_AES_DECRYPT
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 #endif
@@ -14438,9 +14461,11 @@ static wc_test_ret_t aesgcm_default_test_helper(byte* key, int keySz, byte* iv, 
     byte resultC[AES_BLOCK_SIZE * 3];
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+   enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 
@@ -14880,9 +14905,11 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t aesgcm_test(void)
     WOLFSSL_ENTER("aesgcm_test");
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
-    if ((dec = (Aes *)XMALLOC(sizeof *dec, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    dec = wc_AesNew(HEAP_HINT, devId);
+    if (dec == NULL)
         ERROR_OUT(WC_TEST_RET_ENC_ERRNO, out);
 #endif
 
@@ -15818,7 +15845,8 @@ static wc_test_ret_t aesccm_128_test(void)
     byte t_empty2[sizeof(t_empty)];
 
 #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
-    if ((enc = (Aes *)XMALLOC(sizeof *enc, HEAP_HINT, DYNAMIC_TYPE_AES)) == NULL)
+    enc = wc_AesNew(HEAP_HINT, devId);
+    if (enc == NULL)
         return WC_TEST_RET_ENC_ERRNO;
 #endif
 

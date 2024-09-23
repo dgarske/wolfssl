@@ -268,17 +268,6 @@ namespace wolfSSL.CSharp
 
 
         /********************************
-         * ChaCha20
-         */
-        /* wc_Chacha_SetIV, wc_Chacha_Process, wc_Chacha_SetKey,
-         * wc_Poly1305SetKey, wc_Poly1305Update, wc_Poly1305Final,
-         * wc_ChaCha20Poly1305_Encrypt, wc_ChaCha20Poly1305_Decrypt,
-         * wc_ChaCha20Poly1305_Init, wc_ChaCha20Poly1305_UpdateAad,
-         * wc_ChaCha20Poly1305_UpdateData, wc_ChaCha20Poly1305_Final
-         */
-
-
-        /********************************
         * Logging
         */
         [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
