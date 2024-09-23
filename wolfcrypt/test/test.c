@@ -5864,7 +5864,11 @@ exit:
 #ifndef NO_HASH_WRAPPER
 WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
 {
-    wc_HashAlg       hash;
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    wc_HashAlg      *hash = NULL;
+#else
+    wc_HashAlg       hash[1];
+#endif
     int              ret, exp_ret;
     int              i, j;
     int              digestSz;
@@ -5922,17 +5926,25 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
 
     WOLFSSL_ENTER("hash_test");
 
-    /* Parameter Validation testing. */
-    ret = wc_HashNew(WC_HASH_TYPE_SHA256, HEAP_HINT, devId);
-    if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    hash = wc_HashNew(WC_HASH_TYPE_SHA256, HEAP_HINT, devId);
+    if (hash == NULL) {
+        ret = MEMORY_E;
         return WC_TEST_RET_ENC_EC(ret);
+    }
+    hash->isAllocated = 0; /* free manually */
+#else
+    XMEMSET(hash, 0, sizeof(wc_HashAlg));
+#endif
+
+    /* Parameter Validation testing. */
     ret = wc_HashInit(NULL, WC_HASH_TYPE_SHA256);
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
     ret = wc_HashUpdate(NULL, WC_HASH_TYPE_SHA256, NULL, sizeof(data));
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
-    ret = wc_HashUpdate(&hash, WC_HASH_TYPE_SHA256, NULL, sizeof(data));
+    ret = wc_HashUpdate(hash, WC_HASH_TYPE_SHA256, NULL, sizeof(data));
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
     ret = wc_HashUpdate(NULL, WC_HASH_TYPE_SHA256, data, sizeof(data));
@@ -5941,7 +5953,7 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
     ret = wc_HashFinal(NULL, WC_HASH_TYPE_SHA256, NULL);
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
-    ret = wc_HashFinal(&hash, WC_HASH_TYPE_SHA256, NULL);
+    ret = wc_HashFinal(hash, WC_HASH_TYPE_SHA256, NULL);
     if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
         return WC_TEST_RET_ENC_EC(ret);
     ret = wc_HashFinal(NULL, WC_HASH_TYPE_SHA256, out);
@@ -5950,19 +5962,16 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
 
     /* Try invalid hash algorithms. */
     for (i = 0; i < (int)(sizeof(typesBad)/sizeof(*typesBad)); i++) {
-        ret = wc_HashNew(&typesBad[i], HEAP_HINT, devId);
+        ret = wc_HashInit(hash, typesBad[i]);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashInit(&hash, typesBad[i]);
+        ret = wc_HashUpdate(hash, typesBad[i], data, sizeof(data));
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashUpdate(&hash, typesBad[i], data, sizeof(data));
+        ret = wc_HashFinal(hash, typesBad[i], out);
         if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashFinal(&hash, typesBad[i], out);
-        if (ret != WC_NO_ERR_TRACE(BAD_FUNC_ARG))
-            return WC_TEST_RET_ENC_I(i);
-        wc_HashFree(&hash, typesBad[i]);
+        wc_HashFree(hash, typesBad[i]);
     }
 
     /* Try valid hash algorithms. */
@@ -5973,19 +5982,16 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
             exp_ret = HASH_TYPE_E;
             j++;
         }
-        ret = wc_HashNew(typesGood[i], HEAP_HINT, devId);
+        ret = wc_HashInit(hash, typesGood[i]);
         if (ret != exp_ret)
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashInit(&hash, typesGood[i]);
+        ret = wc_HashUpdate(hash, typesGood[i], data, sizeof(data));
         if (ret != exp_ret)
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashUpdate(&hash, typesGood[i], data, sizeof(data));
+        ret = wc_HashFinal(hash, typesGood[i], out);
         if (ret != exp_ret)
             return WC_TEST_RET_ENC_I(i);
-        ret = wc_HashFinal(&hash, typesGood[i], out);
-        if (ret != exp_ret)
-            return WC_TEST_RET_ENC_I(i);
-        wc_HashFree(&hash, typesGood[i]);
+        wc_HashFree(hash, typesGood[i]);
 
         digestSz = wc_HashGetDigestSize(typesGood[i]);
         if (exp_ret < 0 && digestSz != exp_ret)
@@ -6204,6 +6210,11 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t hash_test(void)
     ret = wc_GetCTC_HashOID(-1);
     if (ret != 0)
         return WC_TEST_RET_ENC_EC(ret);
+#endif
+
+#if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
+    hash->isAllocated = 1; /* free manually */
+    (void)wc_HashFree(hash, WC_HASH_TYPE_NONE);
 #endif
 
     return 0;
