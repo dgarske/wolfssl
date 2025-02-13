@@ -818,7 +818,7 @@ int stm32_ecc_verify_hash_ex(mp_int *r, mp_int *s, const byte* hash,
 {
     PKA_ECDSAVerifInTypeDef pka_ecc;
     int size;
-    int szrbin;
+    int szrbin, szsbin;
     int status;
     uint8_t Rbin[STM32_MAX_ECC_SIZE];
     uint8_t Sbin[STM32_MAX_ECC_SIZE];
@@ -842,11 +842,12 @@ int stm32_ecc_verify_hash_ex(mp_int *r, mp_int *s, const byte* hash,
     *res = 0;
 
     szrbin = mp_unsigned_bin_size(r);
+    szsbin = mp_unsigned_bin_size(s);
     size = wc_ecc_size(key);
 
     status = stm32_get_from_mp_int(Rbin, r, szrbin);
     if (status == MP_OKAY)
-        status = stm32_get_from_mp_int(Sbin, s, szrbin);
+        status = stm32_get_from_mp_int(Sbin, s, szsbin);
     if (status == MP_OKAY)
         status = stm32_get_from_mp_int(Qxbin, key->pubkey.x, size);
     if (status == MP_OKAY)
