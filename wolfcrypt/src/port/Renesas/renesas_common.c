@@ -255,6 +255,21 @@ static int Renesas_cmn_CryptoDevCb(int devIdArg, wc_CryptoInfo* info, void* ctx)
     #if defined(WOLFSSL_KEY_GEN) && defined(WOLFSSL_RENESAS_TSIP_CRYPTONLY)
         if (info->pk.type == WC_PK_TYPE_RSA_KEYGEN) {
             ret = wc_tsip_MakeRsaKey(info->pk.rsakg.size, (void*)ctx);
+            if (ret == 0) {
+                TsipUserCtx* tsipCtx = (TsipUserCtx*)ctx;
+                RsaKey* key = info->pk.rsakg.key;
+                /* export generated public key to the RsaKey structure */
+                /* TODO: Account for other RSA key sizes (not just 2048) */
+	            XMEMCPY(&rsa2048pub_sever_key, tsipCtx->rsa2048pub_keyIdx,
+                    sizeof(tsip_rsa2048_public_key_index_t));
+	            ret = wc_RsaPublicKeyDecodeRaw(
+                    tsipCtx->rsa2048pub_keyIdx->value.key_n,
+                        R_TSIP_RSA_2048_KEY_N_LENGTH_BYTE_SIZE,
+                    tsipCtx->rsa2048pub_keyIdx->value.key_e,
+                        R_TSIP_RSA_2048_KEY_E_LENGTH_BYTE_SIZE,
+                    key
+                );
+            }
         }
     #endif
         /* tsip only supports PKCSV15 padding scheme */
