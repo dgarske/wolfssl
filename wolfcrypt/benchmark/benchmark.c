@@ -11073,7 +11073,7 @@ void bench_xmss(int hash)
 #if defined(HAVE_ECC) && !defined(WC_NO_RNG)
 
 /* Maximum ECC name plus null terminator:
- * "ECC   [%15s]" and "ECDHE [%15s]" and "ECDSA [%15s]" */
+ * "ECC   [%15s]" and "ECDH  [%15s]" and "ECDSA [%15s]" */
 #define BENCH_ECC_NAME_SZ (ECC_MAXNAME + 8)
 
 /* run all benchmarks on a curve */
@@ -11304,7 +11304,7 @@ void bench_ecc(int useDeviceID, int curveId)
 
     PRIVATE_KEY_UNLOCK();
 exit_ecdhe:
-    (void)XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDHE [%15s]",
+    (void)XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDH  [%15s]",
                     wc_ecc_get_name(curveId));
 
     bench_stats_asym_finish(name, keySize * 8, desc[3],
@@ -11814,7 +11814,7 @@ void bench_sm2(int useDeviceID)
 
     PRIVATE_KEY_UNLOCK();
 exit_ecdhe:
-    (void)XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDHE [%15s]",
+    (void)XSNPRINTF(name, BENCH_ECC_NAME_SZ, "ECDH  [%15s]",
             wc_ecc_get_name(ECC_SM2P256V1));
 
     bench_stats_asym_finish(name, keySize * 8, desc[3], useDeviceID, count,
