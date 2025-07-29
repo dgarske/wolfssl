@@ -5530,7 +5530,12 @@ int EccSign(WOLFSSL* ssl, const byte* in, word32 inSz, byte* out,
 
     /* Handle async pending response */
 #ifdef WOLFSSL_ASYNC_CRYPT
-    if (key && ret == WC_NO_ERR_TRACE(WC_PENDING_E)) {
+    if (key && (ret == WC_NO_ERR_TRACE(WC_PENDING_E)
+    #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+        defined(WC_ASYNC_ENABLE_ECC)
+        || ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)
+    #endif
+    )) {
         ret = wolfSSL_AsyncPush(ssl, &key->asyncDev);
     }
 #endif /* WOLFSSL_ASYNC_CRYPT */
@@ -5586,7 +5591,12 @@ int EccVerify(WOLFSSL* ssl, const byte* in, word32 inSz, const byte* out,
 
     /* Handle async pending response */
 #ifdef WOLFSSL_ASYNC_CRYPT
-    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)) {
+    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)
+    #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+        defined(WC_ASYNC_ENABLE_ECC)
+        || ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)
+    #endif
+    ) {
         ret = wolfSSL_AsyncPush(ssl, &key->asyncDev);
     }
     else
@@ -5659,7 +5669,12 @@ int EccSharedSecret(WOLFSSL* ssl, ecc_key* priv_key, ecc_key* pub_key,
 
     /* Handle async pending response */
 #ifdef WOLFSSL_ASYNC_CRYPT
-    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)) {
+    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)
+    #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+        defined(WC_ASYNC_ENABLE_ECC)
+        || ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)
+    #endif
+    ) {
         ret = wolfSSL_AsyncPush(ssl, asyncDev);
     }
 #endif /* WOLFSSL_ASYNC_CRYPT */
@@ -5736,7 +5751,12 @@ int EccMakeKey(WOLFSSL* ssl, ecc_key* key, ecc_key* peer)
 
     /* Handle async pending response */
 #ifdef WOLFSSL_ASYNC_CRYPT
-    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)) {
+    if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)
+    #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+        defined(WC_ASYNC_ENABLE_ECC)
+        || ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)
+    #endif
+    ) {
         ret = wolfSSL_AsyncPush(ssl, &key->asyncDev);
     }
 #endif /* WOLFSSL_ASYNC_CRYPT */
@@ -8125,11 +8145,11 @@ int AllocKey(WOLFSSL* ssl, int type, void** pKey)
     size_t sz = 0;
 #ifdef HAVE_ECC
     ecc_key* eccKey;
-#endif /* HAVE_ECC */
 #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
     defined(WC_ASYNC_ENABLE_ECC)
     ecc_nb_ctx_t* nbCtx;
 #endif /* WC_ECC_NONBLOCK && WOLFSSL_ASYNC_CRYPT_SW && WC_ASYNC_ENABLE_ECC*/
+#endif /* HAVE_ECC */
 
     if (ssl == NULL || pKey == NULL) {
         return BAD_FUNC_ARG;
@@ -29845,10 +29865,14 @@ int DecodePrivateKey(WOLFSSL *ssl, word32* length)
         }
 
     #ifndef NO_RSA
-        WOLFSSL_MSG("Trying ECC private key, RSA didn't work");
-    #else
-        WOLFSSL_MSG("Trying ECC private key");
+        if (ssl->buffers.keyType == 0) {
+            WOLFSSL_MSG("Trying ECC private key, RSA didn't work");
+        }
+        else
     #endif
+        {
+            WOLFSSL_MSG("Trying ECC private key");
+        }
 
         /* Set start of data to beginning of buffer. */
         idx = 0;

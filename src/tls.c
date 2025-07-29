@@ -8295,17 +8295,28 @@ static int TLSX_KeyShare_GenEccKey(WOLFSSL *ssl, KeyShareEntry* kse)
 
         /* Initialize an ECC key struct for the ephemeral key */
         ret = wc_ecc_init_ex((ecc_key*)kse->key, ssl->heap, ssl->devId);
-
         if (ret == 0) {
             kse->keyLen = keySize;
             kse->pubKeyLen = keySize * 2 + 1;
 
+            /* for non-blocking ECC, we need to allocate a context */
+        #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+            defined(WC_ASYNC_ENABLE_ECC)
+            {
+            ecc_nb_ctx_t* nbCtx = (ecc_nb_ctx_t*)XMALLOC(sizeof(ecc_nb_ctx_t),
+                eccKey->heap, DYNAMIC_TYPE_TMP_BUFFER);
+            ret = (nbCtx == NULL) ? MEMORY_E :
+                wc_ecc_set_nonblock(eccKey, nbCtx);
+            }
+        #endif
+
         #if defined(WOLFSSL_RENESAS_TSIP_TLS)
             ret = tsip_Tls13GenEccKeyPair(ssl, kse);
-            if (ret != WC_NO_ERR_TRACE(CRYPTOCB_UNAVAILABLE)) {
+            if (ret == 0) {
                 return ret;
             }
         #endif
+
             /* setting eccKey means okay to call wc_ecc_free */
             eccKey = (ecc_key*)kse->key;
 
@@ -8373,8 +8384,13 @@ static int TLSX_KeyShare_GenEccKey(WOLFSSL *ssl, KeyShareEntry* kse)
         /* Cleanup on error, otherwise data owned by key share entry */
         XFREE(kse->pubKey, ssl->heap, DYNAMIC_TYPE_PUBLIC_KEY);
         kse->pubKey = NULL;
-        if (eccKey != NULL)
+        if (eccKey != NULL) {
+            #if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+                defined(WC_ASYNC_ENABLE_ECC)
+                XFREE(eccKey->nb_ctx, eccKey->heap, DYNAMIC_TYPE_TMP_BUFFER);
+            #endif
             wc_ecc_free(eccKey);
+        }
         XFREE(kse->key, ssl->heap, DYNAMIC_TYPE_PRIVATE_KEY);
         kse->key = NULL;
     }
