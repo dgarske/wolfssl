@@ -48109,7 +48109,7 @@ static wc_test_ret_t test_dilithium_decode_level(const byte* rawKey,
 #if !defined(WOLFSSL_DILITHIUM_NO_ASN1) && defined(WOLFSSL_ASN_TEMPLATE)
     /* Size the buffer to accommodate the largest encoded key size */
     const word32  maxDerSz = DILITHIUM_MAX_PRV_KEY_DER_SIZE;
-    word32        derSz;
+    word32        derSz = 0;
     word32        idx;
     #if defined(WOLFSSL_SMALL_STACK) && !defined(WOLFSSL_NO_MALLOC)
     byte*         der = NULL;
