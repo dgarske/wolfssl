@@ -61016,8 +61016,8 @@ static wc_test_ret_t ecc_onlycb_test(myCryptoDevCtx *ctx)
         0xef,0x8c,0x94,0x6f,0xdd,0x62,
     };
 #endif
-#ifdef HAVE_ECC_DHE
-    WC_RNG rng;
+#if defined(HAVE_ECC_DHE) || (defined(HAVE_ECC_SIGN) && defined(HAVE_ECC_VERIFY))
+    WC_RNG rng; /* required argument but not used with crypto callback only */
 #endif
     EncryptedInfo encInfo;
     int keyFormat = 0;
