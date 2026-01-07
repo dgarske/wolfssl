@@ -1,4 +1,4 @@
-name: Arduino CI Build (1 of 4) wolfssl
+name: Arduino CI Build wolfssl
 
 #
 # Test fetches wolfssl-examples/Arduino and uses local, latest github master branch wolfssl

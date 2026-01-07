@@ -1,0 +1,225 @@
+# Constant-Time Verification Workflow
+#
+# This workflow verifies that wolfSSL's cryptographic implementations
+# maintain constant-time execution properties across different compilers
+# and optimization levels.
+#
+# Tests include:
+# 1. Static analysis (assembly inspection for CT patterns)
+# 2. Dynamic analysis (dudect statistical timing tests)
+# 3. CT intrinsics compatibility tests
+#
+# Reference:
+# https://blog.trailofbits.com/2025/12/02/introducing-constant-time-support-for-llvm-to-protect-cryptographic-code/
+
+name: Constant-Time Verification
+
+on:
+  push:
+    branches: [ '**', 'master', 'main', 'release/**' ]
+    paths:
+      - 'wolfcrypt/src/**'
+      - 'wolfssl/wolfcrypt/**'
+      - 'tests/ct/**'
+      - 'scripts/ct-*.sh'
+      - '.github/workflows/constant-time.yml'
+  pull_request:
+    branches: [ '**' ]
+    paths:
+      - 'wolfcrypt/src/**'
+      - 'wolfssl/wolfcrypt/**'
+      - 'tests/ct/**'
+      - 'scripts/ct-*.sh'
+      - '.github/workflows/constant-time.yml'
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # Static Analysis - Assembly Inspection
+  # ============================================================================
+  static-analysis:
+    name: Static Analysis (${{ matrix.compiler }}, -${{ matrix.opt }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [clang, gcc]
+        opt: [O0, O2, O3]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool
+
+      - name: Configure wolfSSL
+        run: |
+          ./autogen.sh
+          ./configure --enable-harden
+
+      - name: Run static CT analysis
+        run: |
+          chmod +x ./scripts/ct-verify.sh
+          ./scripts/ct-verify.sh --cc ${{ matrix.compiler }} --opt "${{ matrix.opt }}"
+
+      - name: Upload assembly files
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: asm-${{ matrix.compiler }}-${{ matrix.opt }}
+          path: ct-verify-build/asm/
+          retention-days: 7
+
+      - name: Upload analysis report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-${{ matrix.compiler }}-${{ matrix.opt }}
+          path: ct-verify-build/ct-verify-report.txt
+          retention-days: 7
+
+  # ============================================================================
+  # Dynamic Analysis - Dudect Timing Tests
+  # ============================================================================
+  dynamic-analysis:
+    name: Dynamic Analysis (dudect, ${{ matrix.compiler }}, -${{ matrix.opt }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [clang, gcc]
+        opt: [O2, O3]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool curl
+
+      - name: Configure wolfSSL
+        run: |
+          ./autogen.sh
+          ./configure --enable-harden
+
+      - name: Build wolfSSL
+        run: make -j$(nproc)
+
+      - name: Download dudect
+        run: |
+          if [ ! -f tests/ct/dudect.h ]; then
+            curl -sL https://raw.githubusercontent.com/oreparaz/dudect/master/src/dudect.h \
+              -o tests/ct/dudect.h
+          fi
+
+      - name: Build CT tests
+        run: |
+          cd tests/ct
+          CC=${{ matrix.compiler }} \
+          CFLAGS="-${{ matrix.opt }} -Wall -I../.. -I../../wolfssl -DHAVE_CONFIG_H -DTFM_TIMING_RESISTANT -DECC_TIMING_RESISTANT" \
+          make all
+
+      - name: Run dudect tests
+        run: |
+          cd tests/ct
+          ./ct_test --quick
+
+      - name: Run intrinsics tests
+        run: |
+          cd tests/ct
+          ./ct_intrinsics_test
+
+  # ============================================================================
+  # CT Intrinsics Compatibility Test
+  # ============================================================================
+  intrinsics-test:
+    name: CT Intrinsics Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool
+
+      - name: Configure wolfSSL
+        run: |
+          ./autogen.sh
+          ./configure --enable-harden
+
+      - name: Build wolfSSL
+        run: make -j$(nproc)
+
+      - name: Build and run intrinsics test
+        run: |
+          cd tests/ct
+          make ct_intrinsics_test
+          ./ct_intrinsics_test
+
+  # ============================================================================
+  # Full Test Suite (Weekly)
+  # ============================================================================
+  full-test:
+    name: Full CT Test Suite
+    runs-on: ubuntu-latest
+    # Only run on schedule or manual trigger
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool curl
+
+      - name: Configure wolfSSL
+        run: |
+          ./autogen.sh
+          ./configure --enable-harden
+
+      - name: Build wolfSSL
+        run: make -j$(nproc)
+
+      - name: Download dudect
+        run: |
+          curl -sL https://raw.githubusercontent.com/oreparaz/dudect/master/src/dudect.h \
+            -o tests/ct/dudect.h
+
+      - name: Run full static analysis
+        run: |
+          chmod +x ./scripts/ct-verify.sh
+          ./scripts/ct-verify.sh
+
+      - name: Build CT tests
+        run: |
+          cd tests/ct
+          make all
+
+      - name: Run full dudect tests (all functions)
+        run: |
+          cd tests/ct
+          ./ct_test
+
+      - name: Run intrinsics tests
+        run: |
+          cd tests/ct
+          ./ct_intrinsics_test
+
+      - name: Upload full report
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-ct-report
+          path: |
+            ct-verify-build/
+          retention-days: 30
