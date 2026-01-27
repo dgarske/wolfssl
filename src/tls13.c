@@ -7892,7 +7892,8 @@ static int SendTls13CertificateRequest(WOLFSSL* ssl, byte* reqCtx,
  * hsType   The signature type.
  * output    The buffer to encode into.
  */
-static WC_INLINE void EncodeSigAlg(const WOLFSSL * ssl, byte hashAlgo, byte hsType, byte* output)
+static WC_INLINE void EncodeSigAlg(const WOLFSSL* ssl, byte hashAlgo,
+                                   byte hsType, byte* output)
 {
     (void)ssl;
     switch (hsType) {
