@@ -94,6 +94,7 @@
 
 #include <wolfssl/internal.h>
 #include <wolfssl/error-ssl.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssl/wolfcrypt/asn.h>
 #include <wolfssl/wolfcrypt/dh.h>
 #ifdef NO_INLINE
@@ -5598,7 +5599,9 @@ int EccSign(WOLFSSL* ssl, const byte* in, word32 inSz, byte* out,
     else
 #endif /* HAVE_PK_CALLBACKS */
     {
-        ret = wc_ecc_sign_hash(in, inSz, out, outSz, ssl->rng, key);
+        do {
+            ret = wc_ecc_sign_hash(in, inSz, out, outSz, ssl->rng, key);
+        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
     }
 
     /* Handle async pending response */
@@ -5654,7 +5657,10 @@ int EccVerify(WOLFSSL* ssl, const byte* in, word32 inSz, const byte* out,
     #endif
 #endif /* HAVE_PK_CALLBACKS  */
     {
-        ret = wc_ecc_verify_hash(in, inSz, out, outSz, &ssl->eccVerifyRes, key);
+        do {
+            ret = wc_ecc_verify_hash(in, inSz, out, outSz, &ssl->eccVerifyRes,
+                key);
+        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
     }
 
     /* Handle async pending response */
@@ -5725,7 +5731,9 @@ int EccSharedSecret(WOLFSSL* ssl, ecc_key* priv_key, ecc_key* pub_key,
 #endif
         {
             PRIVATE_KEY_UNLOCK();
-            ret = wc_ecc_shared_secret(priv_key, pub_key, out, outlen);
+            do {
+                ret = wc_ecc_shared_secret(priv_key, pub_key, out, outlen);
+            } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
             PRIVATE_KEY_LOCK();
         }
     }
@@ -5796,7 +5804,9 @@ int EccMakeKey(WOLFSSL* ssl, ecc_key* key, ecc_key* peer)
     else
 #endif
     {
-        ret = wc_ecc_make_key_ex(ssl->rng, keySz, key, ecc_curve);
+        do {
+            ret = wc_ecc_make_key_ex(ssl->rng, keySz, key, ecc_curve);
+        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
     }
 
     /* make sure the curve is set for TLS */
@@ -6146,6 +6156,20 @@ static int X25519SharedSecret(WOLFSSL* ssl, curve25519_key* priv_key,
         }
     }
 
+    /* Handle non-blocking Curve25519 without async layer. */
+#ifdef WC_X25519_NONBLOCK
+    if (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)) {
+    #ifdef WOLFSSL_ASYNC_CRYPT
+        ret = WC_PENDING_E;
+    #else
+        do {
+            ret = wc_curve25519_shared_secret_ex(priv_key, pub_key, out, outlen,
+                                                 EC25519_LITTLE_ENDIAN);
+        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
+    #endif
+    }
+#endif /* WC_X25519_NONBLOCK */
+
     /* Handle async pending response */
 #ifdef WOLFSSL_ASYNC_CRYPT
     if (ret == WC_NO_ERR_TRACE(WC_PENDING_E)) {
@@ -6184,6 +6208,19 @@ static int X25519MakeKey(WOLFSSL* ssl, curve25519_key* key,
     {
         ret = wc_curve25519_make_key(ssl->rng, CURVE25519_KEYSIZE, key);
     }
+
+    /* Handle non-blocking Curve25519 without async layer. */
+#ifdef WC_X25519_NONBLOCK
+    if (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK)) {
+    #ifdef WOLFSSL_ASYNC_CRYPT
+        ret = WC_PENDING_E;
+    #else
+        do {
+            ret = wc_curve25519_make_key(ssl->rng, CURVE25519_KEYSIZE, key);
+        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
+    #endif
+    }
+#endif /* WC_X25519_NONBLOCK */
 
     if (ret == 0) {
         ssl->ecdhCurveOID = ECC_X25519_OID;
@@ -8189,7 +8226,8 @@ void FreeKey(WOLFSSL* ssl, int type, void** pKey)
         #endif /* HAVE_ED25519 */
         #ifdef HAVE_CURVE25519
             case DYNAMIC_TYPE_CURVE25519:
-            #if defined(WC_X25519_NONBLOCK) && defined(WOLFSSL_ASYNC_CRYPT_SW) && \
+            #if defined(WC_X25519_NONBLOCK) && \
+                defined(WOLFSSL_ASYNC_CRYPT_SW) && \
                 defined(WC_ASYNC_ENABLE_X25519)
                 if (((curve25519_key*)*pKey)->nbCtx != NULL) {
                     XFREE(((curve25519_key*)*pKey)->nbCtx, ssl->heap,

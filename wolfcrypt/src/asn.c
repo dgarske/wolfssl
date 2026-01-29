@@ -18958,8 +18958,11 @@ int ConfirmSignature(SignatureCtx* sigCtx,
                             WOLFSSL_ERROR_VERBOSE(ret);
                             goto exit_cs;
                         }
-                        ret = wc_ecc_sm2_verify_hash(sig, sigSz, sigCtx->digest,
-                            sigCtx->digestSz, &sigCtx->verify, sigCtx->key.ecc);
+                        do {
+                            ret = wc_ecc_sm2_verify_hash(sig, sigSz,
+                                sigCtx->digest, sigCtx->digestSz,
+                                &sigCtx->verify, sigCtx->key.ecc);
+                        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
                     }
                     else
                 #endif
@@ -18980,9 +18983,11 @@ int ConfirmSignature(SignatureCtx* sigCtx,
                 #endif /* WOLFSSL_RENESAS_FSPSM_TLS */
                 #endif /* HAVE_PK_CALLBACKS */
                     {
-                        ret = wc_ecc_verify_hash(sig, sigSz, sigCtx->digest,
-                            (word32)sigCtx->digestSz, &sigCtx->verify,
-                            sigCtx->key.ecc);
+                        do {
+                            ret = wc_ecc_verify_hash(sig, sigSz,
+                                sigCtx->digest, (word32)sigCtx->digestSz,
+                                &sigCtx->verify, sigCtx->key.ecc);
+                        } while (ret == WC_NO_ERR_TRACE(MP_WOULDBLOCK));
                     }
                     break;
                 }

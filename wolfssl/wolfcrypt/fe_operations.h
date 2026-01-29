@@ -101,7 +101,8 @@ WOLFSSL_LOCAL int curve25519_nb(byte * q, const byte * n, const byte * p,
 
 #else
     #ifdef WC_X25519_NONBLOCK
-        #error The X25519 non-blocking requires CURVE25519_SMALL (--enable-curve25519=small)
+        #error The X25519 non-blocking requires CURVE25519_SMALL \
+               (--enable-curve25519=small)
     #endif
 #endif /* CURVE25519_SMALL || ED25519_SMALL */
 

@@ -185,8 +185,9 @@ int wc_curve25519_make_key(WC_RNG* rng, int keysize, curve25519_key* key);
 
 /*!
     \brief Enable non-blocking support for X25519 operations on a key.
-           When enabled, wc_curve25519_make_key() and wc_curve25519_shared_secret()
-           will return FP_WOULDBLOCK during operation, allowing the caller to
+           When enabled, wc_curve25519_make_key() and
+           wc_curve25519_shared_secret() will return FP_WOULDBLOCK during
+           operation, allowing the caller to
            yield and resume. Requires WC_X25519_NONBLOCK and CURVE25519_SMALL.
 
     \param key   Pointer to curve25519_key structure to configure
