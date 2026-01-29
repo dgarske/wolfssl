@@ -78,6 +78,7 @@ typedef struct ECPoint {
 
 typedef struct fe_inv__distinct_nb_ctx_t {
     int state;
+    int subState;
     byte s[F25519_SIZE];
     int i;
 } fe_inv__distinct_nb_ctx_t;
@@ -85,15 +86,28 @@ typedef struct fe_inv__distinct_nb_ctx_t {
 typedef struct x25519_nb_ctx_t {
     /* state for curve25519 operation */
     int state;
+    int subState;
     /* state for shared secret */
     int ssState;
     int i;
+    int bit;
     /* Current point: P_m */
     byte xm[F25519_SIZE];
     byte zm[F25519_SIZE];
     /* Predecessor: P_(m-1) */
     byte xm1[F25519_SIZE];
     byte zm1[F25519_SIZE];
+    /* Temporary P_(2m+1) */
+    byte xms[F25519_SIZE];
+    byte zms[F25519_SIZE];
+    /* Temporary buffers for non-blocking diffadd/double */
+    byte a[F25519_SIZE];
+    byte b[F25519_SIZE];
+    byte da[F25519_SIZE];
+    byte cb[F25519_SIZE];
+    byte x1sq[F25519_SIZE];
+    byte z1sq[F25519_SIZE];
+    byte x1z1[F25519_SIZE];
     fe_inv__distinct_nb_ctx_t inv_distinct_nb_ctx;
     ECPoint o; /* point for shared secret */
 } x25519_nb_ctx_t;

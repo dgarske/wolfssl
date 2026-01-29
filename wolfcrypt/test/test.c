@@ -38586,7 +38586,11 @@ static wc_test_ret_t curve255519_der_test(void)
 #endif /* !NO_ASN && HAVE_CURVE25519_KEY_EXPORT && HAVE_CURVE25519_KEY_IMPORT */
 
 #ifdef WC_X25519_NONBLOCK
-
+/* build and test with:
+ * ./configure --enable-curve25519=nonblock CFLAGS="-DWOLFSSL_DEBUG_NONBLOCK"
+ * make
+ * ./wolfcrypt/test/testwolfcrypt
+ */
 static int x25519_nonblock_test(WC_RNG* rng)
 {
     int ret = 0;
@@ -38623,6 +38627,7 @@ static int x25519_nonblock_test(WC_RNG* rng)
         return -10724;
     }
 #if defined(DEBUG_WOLFSSL) || defined(WOLFSSL_DEBUG_NONBLOCK)
+    /* CURVE25519 non-block key gen: 5335 times */
     printf("CURVE25519 non-block key gen: %d times\n", count);
 #endif
 
@@ -38669,6 +38674,7 @@ static int x25519_nonblock_test(WC_RNG* rng)
         return -10728;
     }
 #if defined(DEBUG_WOLFSSL) || defined(WOLFSSL_DEBUG_NONBLOCK)
+    /* CURVE25519 non-block shared secret: 5337 times */
     printf("CURVE25519 non-block shared secret: %d times\n", count);
 #endif
 

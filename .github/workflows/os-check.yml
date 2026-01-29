@@ -81,6 +81,7 @@ jobs:
           '--enable-all CPPFLAGS=-DWOLFSSL_NO_CLIENT_AUTH',
           '--enable-all CPPFLAGS=''-DNO_WOLFSSL_CLIENT -DWOLFSSL_NO_CLIENT_AUTH''',
           '--enable-all CPPFLAGS=''-DNO_WOLFSSL_SERVER -DWOLFSSL_NO_CLIENT_AUTH''',
+          '--enable-curve25519=nonblock --enable-ecc=nonblock --enable-sp=yes,nonblock --disable-examples CFLAGS="-DWOLFSSL_PUBLIC_MP -DWOLFSSL_DEBUG_NONBLOCK"',
         ]
     name: make check
     if: github.repository_owner == 'wolfssl'
@@ -127,6 +128,7 @@ jobs:
           'examples/configs/user_settings_dtls13.h',
           'examples/configs/user_settings_EBSnet.h',
           'examples/configs/user_settings_eccnonblock.h',
+          'examples/configs/user_settings_curve25519nonblock.h',
           'examples/configs/user_settings_min_ecc.h',
           'examples/configs/user_settings_openssl_compat.h',
           'examples/configs/user_settings_pkcs7.h',
