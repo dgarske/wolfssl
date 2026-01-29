@@ -69,11 +69,6 @@
     #endif
 #endif
 
-#if defined(WOLFSSL_CURVE25519_BLINDING)
-WOLFSSL_LOCAL int curve25519_blind(byte* q, const byte* n, const byte* mask,
-    const byte* p, const byte* rz);
-#endif
-
 #if defined(WOLFSSL_USE_SAVE_VECTOR_REGISTERS) && !defined(USE_INTEL_SPEEDUP)
     /* force off unneeded vector register save/restore. */
     #undef SAVE_VECTOR_REGISTERS
@@ -142,7 +137,7 @@ static WC_INLINE void curve25519_copy_point(byte* out, const byte* point,
  * ECC_BAD_ARG_E, and the byte vectors are little endian.
  */
 int wc_curve25519_make_pub(int public_size, byte* pub, int private_size,
-    const byte* priv)
+                           const byte* priv)
 {
     int ret;
 #ifdef FREESCALE_LTC_ECC
