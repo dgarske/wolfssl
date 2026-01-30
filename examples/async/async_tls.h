@@ -26,6 +26,22 @@
 #define DEFAULT_PORT 11111
 #define TEST_BUF_SZ  256
 
+/* Force ECC-only certs/keys for these async TLS examples. */
+#ifndef ASYNC_ECC_ONLY
+#define ASYNC_ECC_ONLY 1
+#endif
+
+static WC_INLINE void async_print_ecc_nonblock_status(void)
+{
+#if defined(WC_ECC_NONBLOCK) && defined(WOLFSSL_HAVE_SP_ECC)
+    printf("ECC non-blocking: enabled (WC_ECC_NONBLOCK + WOLFSSL_HAVE_SP_ECC)\n");
+#elif defined(WC_ECC_NONBLOCK)
+    printf("ECC non-blocking: WC_ECC_NONBLOCK defined but SP-ECC missing\n");
+#else
+    printf("ECC non-blocking: disabled (WC_ECC_NONBLOCK not defined)\n");
+#endif
+}
+
 #ifdef WOLF_CRYPTO_CB
 /* Example custom context for crypto callback */
 typedef struct {

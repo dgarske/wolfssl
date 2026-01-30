@@ -52,16 +52,25 @@
 #include "examples/async/async_tls.h"
 
 /* Test certificates and keys for RSA and ECC */
-#ifndef NO_RSA
-    #define CERT_FILE "./certs/server-cert.pem"
-    #define KEY_FILE  "./certs/server-key.pem"
-    #define CA_FILE   "./certs/client-cert.pem"
-#elif defined(HAVE_ECC)
+#if defined(ASYNC_ECC_ONLY)
+    #ifndef HAVE_ECC
+        #error ASYNC_ECC_ONLY requires HAVE_ECC
+    #endif
     #define CERT_FILE "./certs/server-ecc.pem"
     #define KEY_FILE  "./certs/ecc-key.pem"
     #define CA_FILE   "./certs/client-ecc-cert.pem"
 #else
-    #error No authentication algorithm (ECC/RSA)
+    #ifndef NO_RSA
+        #define CERT_FILE "./certs/server-cert.pem"
+        #define KEY_FILE  "./certs/server-key.pem"
+        #define CA_FILE   "./certs/client-cert.pem"
+    #elif defined(HAVE_ECC)
+        #define CERT_FILE "./certs/server-ecc.pem"
+        #define KEY_FILE  "./certs/ecc-key.pem"
+        #define CA_FILE   "./certs/client-ecc-cert.pem"
+    #else
+        #error No authentication algorithm (ECC/RSA)
+    #endif
 #endif
 
 static int mSockfd = SOCKET_INVALID;
@@ -173,6 +182,7 @@ int server_async_test(int argc, char** argv)
         fprintf(stderr, "ERROR: Failed to initialize the library\n");
         goto exit;
     }
+    async_print_ecc_nonblock_status();
 
     /* Create and initialize WOLFSSL_CTX */
     if ((ctx = wolfSSL_CTX_new(wolfSSLv23_server_method())) == NULL) {
