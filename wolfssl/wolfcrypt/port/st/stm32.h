@@ -76,6 +76,9 @@
 #if !defined(HASH_ALGOMODE_HASH) && defined(HASH_AlgoMode_HASH)
     #define HASH_ALGOMODE_HASH HASH_AlgoMode_HASH
 #endif
+#if !defined(HASH_ALGOMODE_HMAC) && defined(HASH_AlgoMode_HMAC)
+    #define HASH_ALGOMODE_HMAC HASH_AlgoMode_HMAC
+#endif
 #if !defined(HASH_DATATYPE_8B)
     #if defined(HASH_DataType_8b)
         #define HASH_DATATYPE_8B HASH_DataType_8b
@@ -130,6 +133,18 @@ int  wc_Stm32_Hash_Update(STM32_HASH_Context* stmCtx, word32 algo,
     const byte* data, word32 len, word32 blockSize);
 int  wc_Stm32_Hash_Final(STM32_HASH_Context* stmCtx, word32 algo,
     byte* hash, word32 digestSize);
+
+#ifdef STM32_HMAC
+/* STM32 Hardware HMAC API */
+int wc_Stm32_Hmac_GetAlgoInfo(int macType, word32* algo, word32* blockSize,
+    word32* digestSize);
+int wc_Stm32_Hmac_SetKey(STM32_HASH_Context* stmCtx, int macType,
+    const byte* key, word32 keySz);
+int wc_Stm32_Hmac_Update(STM32_HASH_Context* stmCtx, int macType,
+    const byte* data, word32 len);
+int wc_Stm32_Hmac_Final(STM32_HASH_Context* stmCtx, int macType,
+    const byte* key, word32 keySz, byte* hash);
+#endif /* STM32_HMAC */
 
 #endif /* STM32_HASH */
 
