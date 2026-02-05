@@ -158,6 +158,11 @@ struct Hmac {
 #if defined(WOLFSSL_ASYNC_CRYPT) || defined(WOLF_CRYPTO_CB)
     word16  keyLen;          /* hmac key length (key in ipad) */
 #endif
+#if defined(STM32_HASH) && defined(STM32_HMAC)
+    STM32_HASH_Context stmCtx;
+    byte   stmKey[WC_HMAC_BLOCK_SIZE];  /* raw key for HW HMAC phases 1 & 3 */
+    word32 stmKeyLen;
+#endif
 };
 
 #ifndef WC_HMAC_TYPE_DEFINED

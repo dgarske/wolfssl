@@ -533,6 +533,54 @@ int wc_HmacSetKey_ex(Hmac* hmac, int type, const byte* key, word32 length,
     return 0;
 #else
 
+#if defined(STM32_HASH) && defined(STM32_HMAC)
+    {
+        word32 stmAlgo, stmBlockSize, stmDigestSize;
+        /* Check if this hash type is supported by STM32 HMAC hardware */
+        if (wc_Stm32_Hmac_GetAlgoInfo(type, &stmAlgo, &stmBlockSize,
+                                       &stmDigestSize) == 0) {
+            /* Store raw key - pre-hash if longer than hash block size */
+            if (length <= stmBlockSize) {
+                if (key != NULL) {
+                    XMEMCPY(hmac->stmKey, key, length);
+                }
+                hmac->stmKeyLen = length;
+            }
+            else {
+                /* Pre-hash long key using STM32 HASH hardware */
+                STM32_HASH_Context tmpCtx;
+                wc_Stm32_Hash_Init(&tmpCtx);
+                ret = wolfSSL_CryptHwMutexLock();
+                if (ret == 0) {
+                    ret = wc_Stm32_Hash_Update(&tmpCtx, stmAlgo,
+                        key, length, stmBlockSize);
+                    if (ret == 0) {
+                        ret = wc_Stm32_Hash_Final(&tmpCtx, stmAlgo,
+                            hmac->stmKey, stmDigestSize);
+                    }
+                    wolfSSL_CryptHwMutexUnLock();
+                }
+                if (ret != 0)
+                    return ret;
+                hmac->stmKeyLen = stmDigestSize;
+            }
+
+            /* HW HMAC Phase 1: feed key */
+            ret = wolfSSL_CryptHwMutexLock();
+            if (ret == 0) {
+                ret = wc_Stm32_Hmac_SetKey(&hmac->stmCtx, type,
+                    hmac->stmKey, hmac->stmKeyLen);
+                wolfSSL_CryptHwMutexUnLock();
+            }
+            if (ret == 0) {
+                hmac->innerHashKeyed = WC_HMAC_INNER_HASH_KEYED_DEV;
+            }
+            return ret;
+        }
+        /* Unsupported algo falls through to software */
+    }
+#endif /* STM32_HASH && STM32_HMAC */
+
     ip = (byte*)hmac->ipad;
     op = (byte*)hmac->opad;
 
@@ -853,6 +901,18 @@ int wc_HmacUpdate(Hmac* hmac, const byte* msg, word32 length)
     }
 #endif /* WOLFSSL_ASYNC_CRYPT */
 
+#if defined(STM32_HASH) && defined(STM32_HMAC)
+    if (hmac->innerHashKeyed == WC_HMAC_INNER_HASH_KEYED_DEV) {
+        ret = wolfSSL_CryptHwMutexLock();
+        if (ret == 0) {
+            ret = wc_Stm32_Hmac_Update(&hmac->stmCtx, hmac->macType,
+                msg, length);
+            wolfSSL_CryptHwMutexUnLock();
+        }
+        return ret;
+    }
+#endif /* STM32_HASH && STM32_HMAC */
+
     if (!hmac->innerHashKeyed) {
 #ifndef WOLFSSL_HMAC_COPY_HASH
         ret = HmacKeyHashUpdate(hmac->macType, &hmac->hash, (byte*)hmac->ipad);
@@ -969,6 +1029,21 @@ int wc_HmacFinal(Hmac* hmac, byte* hash)
     #endif
     }
 #endif /* WOLFSSL_ASYNC_CRYPT */
+
+#if defined(STM32_HASH) && defined(STM32_HMAC)
+    if (hmac->innerHashKeyed == WC_HMAC_INNER_HASH_KEYED_DEV) {
+        ret = wolfSSL_CryptHwMutexLock();
+        if (ret == 0) {
+            ret = wc_Stm32_Hmac_Final(&hmac->stmCtx, hmac->macType,
+                hmac->stmKey, hmac->stmKeyLen, hash);
+            wolfSSL_CryptHwMutexUnLock();
+        }
+        if (ret == 0) {
+            hmac->innerHashKeyed = 0;
+        }
+        return ret;
+    }
+#endif /* STM32_HASH && STM32_HMAC */
 
     if (!hmac->innerHashKeyed) {
 #ifndef WOLFSSL_HMAC_COPY_HASH
