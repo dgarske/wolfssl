@@ -160,8 +160,10 @@ struct Hmac {
 #endif
 #if defined(STM32_HASH) && defined(STM32_HMAC)
     STM32_HASH_Context stmCtx;
-    byte   stmKey[WC_HMAC_BLOCK_SIZE];  /* raw key for HW HMAC phases 1 & 3 */
-    word32 stmKeyLen;
+    word32 stmAlgo;       /* cached STM32 HASH algo selection */
+    word32 stmBlockSize;  /* cached hash block size */
+    word32 stmDigestSize; /* cached digest size */
+    word32 stmKeyLen;     /* key length (raw key stored in ipad) */
 #endif
 };
 

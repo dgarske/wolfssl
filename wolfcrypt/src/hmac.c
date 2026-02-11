@@ -539,24 +539,29 @@ int wc_HmacSetKey_ex(Hmac* hmac, int type, const byte* key, word32 length,
         /* Check if this hash type is supported by STM32 HMAC hardware */
         if (wc_Stm32_Hmac_GetAlgoInfo(type, &stmAlgo, &stmBlockSize,
                                        &stmDigestSize) == 0) {
-            /* Store raw key - pre-hash if longer than hash block size */
+            /* Cache algo info for Update/Final */
+            hmac->stmAlgo = stmAlgo;
+            hmac->stmBlockSize = stmBlockSize;
+            hmac->stmDigestSize = stmDigestSize;
+
+            /* Store raw key in ipad (unused in HW HMAC mode).
+             * Pre-hash if longer than hash block size. */
             if (length <= stmBlockSize) {
                 if (key != NULL) {
-                    XMEMCPY(hmac->stmKey, key, length);
+                    XMEMCPY(hmac->ipad, key, length);
                 }
                 hmac->stmKeyLen = length;
             }
             else {
-                /* Pre-hash long key using STM32 HASH hardware */
-                STM32_HASH_Context tmpCtx;
-                wc_Stm32_Hash_Init(&tmpCtx);
+                /* Pre-hash long key using stmCtx (re-initialized below) */
+                wc_Stm32_Hash_Init(&hmac->stmCtx);
                 ret = wolfSSL_CryptHwMutexLock();
                 if (ret == 0) {
-                    ret = wc_Stm32_Hash_Update(&tmpCtx, stmAlgo,
+                    ret = wc_Stm32_Hash_Update(&hmac->stmCtx, stmAlgo,
                         key, length, stmBlockSize);
                     if (ret == 0) {
-                        ret = wc_Stm32_Hash_Final(&tmpCtx, stmAlgo,
-                            hmac->stmKey, stmDigestSize);
+                        ret = wc_Stm32_Hash_Final(&hmac->stmCtx, stmAlgo,
+                            (byte*)hmac->ipad, stmDigestSize);
                     }
                     wolfSSL_CryptHwMutexUnLock();
                 }
@@ -569,7 +574,7 @@ int wc_HmacSetKey_ex(Hmac* hmac, int type, const byte* key, word32 length,
             ret = wolfSSL_CryptHwMutexLock();
             if (ret == 0) {
                 ret = wc_Stm32_Hmac_SetKey(&hmac->stmCtx, type,
-                    hmac->stmKey, hmac->stmKeyLen);
+                    (const byte*)hmac->ipad, hmac->stmKeyLen);
                 wolfSSL_CryptHwMutexUnLock();
             }
             if (ret == 0) {
@@ -905,8 +910,8 @@ int wc_HmacUpdate(Hmac* hmac, const byte* msg, word32 length)
     if (hmac->innerHashKeyed == WC_HMAC_INNER_HASH_KEYED_DEV) {
         ret = wolfSSL_CryptHwMutexLock();
         if (ret == 0) {
-            ret = wc_Stm32_Hmac_Update(&hmac->stmCtx, hmac->macType,
-                msg, length);
+            ret = wc_Stm32_Hmac_Update(&hmac->stmCtx, hmac->stmAlgo,
+                msg, length, hmac->stmBlockSize);
             wolfSSL_CryptHwMutexUnLock();
         }
         return ret;
@@ -1034,8 +1039,9 @@ int wc_HmacFinal(Hmac* hmac, byte* hash)
     if (hmac->innerHashKeyed == WC_HMAC_INNER_HASH_KEYED_DEV) {
         ret = wolfSSL_CryptHwMutexLock();
         if (ret == 0) {
-            ret = wc_Stm32_Hmac_Final(&hmac->stmCtx, hmac->macType,
-                hmac->stmKey, hmac->stmKeyLen, hash);
+            ret = wc_Stm32_Hmac_Final(&hmac->stmCtx, hmac->stmAlgo,
+                (const byte*)hmac->ipad, hmac->stmKeyLen, hash,
+                hmac->stmDigestSize);
             wolfSSL_CryptHwMutexUnLock();
         }
         if (ret == 0) {

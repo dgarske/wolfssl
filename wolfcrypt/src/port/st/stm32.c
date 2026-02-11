@@ -162,7 +162,8 @@ static void wc_Stm32_Hash_SaveContext(STM32_HASH_Context* ctx)
 #endif
 }
 
-static void wc_Stm32_Hash_RestoreContext(STM32_HASH_Context* ctx, int algo)
+static void wc_Stm32_Hash_RestoreContext(STM32_HASH_Context* ctx, word32 algo,
+    word32 mode)
 {
     int i;
 
@@ -182,8 +183,10 @@ static void wc_Stm32_Hash_RestoreContext(STM32_HASH_Context* ctx, int algo)
         #endif
         );
 
-        /* configure algorithm, mode and data type */
-        HASH->CR |= (algo | HASH_ALGOMODE_HASH | HASH_DATATYPE_8B);
+        /* configure algorithm, mode and data type
+         * mode is HASH_ALGOMODE_HASH or HASH_ALGOMODE_HMAC
+         * (may include HASH_CR_LKEY for HMAC with long key) */
+        HASH->CR |= (algo | mode | HASH_DATATYPE_8B);
 
         /* reset HASH processor */
         HASH->CR |= HASH_CR_INIT;
@@ -192,7 +195,8 @@ static void wc_Stm32_Hash_RestoreContext(STM32_HASH_Context* ctx, int algo)
         wc_Stm32_Hash_NumValidBits(0);
 
 #ifdef DEBUG_STM32_HASH
-        printf("STM Init algo %x\n", algo);
+        printf("STM Init algo %x, mode %x\n", (unsigned int)algo,
+            (unsigned int)mode);
 #endif
     }
     else {
@@ -363,7 +367,7 @@ int wc_Stm32_Hash_Update(STM32_HASH_Context* stmCtx, word32 algo,
     STM32_HASH_CLOCK_ENABLE(stmCtx);
 
     /* restore hash context or init as new hash */
-    wc_Stm32_Hash_RestoreContext(stmCtx, algo);
+    wc_Stm32_Hash_RestoreContext(stmCtx, algo, HASH_ALGOMODE_HASH);
 
     /* write blocks to FIFO */
     while (len) {
@@ -417,7 +421,7 @@ int wc_Stm32_Hash_Final(STM32_HASH_Context* stmCtx, word32 algo,
     STM32_HASH_CLOCK_ENABLE(stmCtx);
 
     /* restore hash context or init as new hash */
-    wc_Stm32_Hash_RestoreContext(stmCtx, algo);
+    wc_Stm32_Hash_RestoreContext(stmCtx, algo, HASH_ALGOMODE_HASH);
 
     /* finish reading any trailing bytes into FIFO */
     if (stmCtx->buffLen > 0) {
@@ -505,74 +509,6 @@ int wc_Stm32_Hmac_GetAlgoInfo(int macType, word32* algo, word32* blockSize,
     return ret;
 }
 
-static void wc_Stm32_Hmac_RestoreContext(STM32_HASH_Context* ctx,
-    word32 algo, word32 keyLen, word32 blockSize)
-{
-    int i;
-
-    if (ctx->HASH_CR == 0) {
-        /* first-time init */
-
-    #if defined(HASH_IMR_DINIE) && defined(HASH_IMR_DCIE)
-        /* Disable IRQ's */
-        HASH->IMR &= ~(HASH_IMR_DINIE | HASH_IMR_DCIE);
-    #endif
-
-        /* reset the control register */
-        HASH->CR &= ~(HASH_CR_ALGO | HASH_CR_MODE | HASH_CR_DATATYPE
-        #ifdef HASH_CR_LKEY
-            | HASH_CR_LKEY
-        #endif
-        );
-
-        /* configure algorithm, HMAC mode and data type */
-        HASH->CR |= (algo | HASH_ALGOMODE_HMAC | HASH_DATATYPE_8B);
-
-    #ifdef HASH_CR_LKEY
-        /* set LKEY bit if key is longer than block size */
-        if (keyLen > blockSize) {
-            HASH->CR |= HASH_CR_LKEY;
-        }
-    #endif
-
-        /* reset HASH processor */
-        HASH->CR |= HASH_CR_INIT;
-
-        /* by default mark all bits valid */
-        wc_Stm32_Hash_NumValidBits(0);
-
-    #ifdef DEBUG_STM32_HASH
-        printf("STM HMAC Init algo %x, keyLen %d\n", (unsigned int)algo,
-            (int)keyLen);
-    #endif
-    }
-    else {
-        /* restore context registers */
-        HASH->IMR = ctx->HASH_IMR;
-        HASH->STR = ctx->HASH_STR;
-        HASH->CR  = ctx->HASH_CR;
-    #ifdef STM32_HASH_SHA3
-        HASH->SHA3CFGR = ctx->SHA3CFGR;
-    #endif
-
-        /* Initialize the hash processor */
-        HASH->CR |= HASH_CR_INIT;
-
-        /* continue restoring context registers */
-        for (i = 0; i < HASH_CR_SIZE; i++) {
-            HASH->CSR[i] = ctx->HASH_CSR[i];
-        }
-
-    #ifdef DEBUG_STM32_HASH
-        printf("STM HMAC Restore CR %lx, IMR %lx, STR %lx\n",
-            HASH->CR, HASH->IMR, HASH->STR);
-    #endif
-    }
-
-    (void)keyLen;
-    (void)blockSize;
-}
-
 static void wc_Stm32_Hmac_FeedKey(const byte* key, word32 keySz)
 {
     word32 i, blocks;
@@ -605,6 +541,7 @@ int wc_Stm32_Hmac_SetKey(STM32_HASH_Context* stmCtx, int macType,
 {
     int ret;
     word32 algo, blockSize, digestSize;
+    word32 mode;
 
     if (stmCtx == NULL || key == NULL)
         return BAD_FUNC_ARG;
@@ -624,7 +561,13 @@ int wc_Stm32_Hmac_SetKey(STM32_HASH_Context* stmCtx, int macType,
     STM32_HASH_CLOCK_ENABLE(stmCtx);
 
     /* initialize hardware for HMAC mode */
-    wc_Stm32_Hmac_RestoreContext(stmCtx, algo, keySz, blockSize);
+    mode = HASH_ALGOMODE_HMAC;
+#ifdef HASH_CR_LKEY
+    if (keySz > blockSize) {
+        mode |= HASH_CR_LKEY;
+    }
+#endif
+    wc_Stm32_Hash_RestoreContext(stmCtx, algo, mode);
 
     /* Phase 1: Feed key into HASH->DIN */
     wc_Stm32_Hmac_FeedKey(key, keySz);
@@ -647,55 +590,25 @@ int wc_Stm32_Hmac_SetKey(STM32_HASH_Context* stmCtx, int macType,
     return ret;
 }
 
-int wc_Stm32_Hmac_Update(STM32_HASH_Context* stmCtx, int macType,
-    const byte* data, word32 len)
+int wc_Stm32_Hmac_Final(STM32_HASH_Context* stmCtx, word32 algo,
+    const byte* key, word32 keySz, byte* hash, word32 digestSize)
 {
     int ret;
-    word32 algo, blockSize, digestSize;
-
-    if (stmCtx == NULL || (data == NULL && len > 0))
-        return BAD_FUNC_ARG;
-    if (len == 0)
-        return 0;
-
-    ret = wc_Stm32_Hmac_GetAlgoInfo(macType, &algo, &blockSize, &digestSize);
-    if (ret != 0)
-        return ret;
-
-#ifdef DEBUG_STM32_HASH
-    printf("STM HMAC Update: macType %d, len %d\n", macType, (int)len);
-#endif
-
-    /* Reuse Hash_Update - the saved context CR already contains
-     * HASH_ALGOMODE_HMAC, so RestoreContext will preserve HMAC mode */
-    ret = wc_Stm32_Hash_Update(stmCtx, algo, data, len, blockSize);
-
-    return ret;
-}
-
-int wc_Stm32_Hmac_Final(STM32_HASH_Context* stmCtx, int macType,
-    const byte* key, word32 keySz, byte* hash)
-{
-    int ret;
-    word32 algo, blockSize, digestSize;
 
     if (stmCtx == NULL || key == NULL || hash == NULL)
         return BAD_FUNC_ARG;
 
-    ret = wc_Stm32_Hmac_GetAlgoInfo(macType, &algo, &blockSize, &digestSize);
-    if (ret != 0)
-        return ret;
-
 #ifdef DEBUG_STM32_HASH
-    printf("STM HMAC Final: macType %d, keySz %d, buffLen %d, fifoBytes %d\n",
-        macType, (int)keySz, (int)stmCtx->buffLen, (int)stmCtx->fifoBytes);
+    printf("STM HMAC Final: algo %x, keySz %d, buffLen %d, fifoBytes %d\n",
+        (unsigned int)algo, (int)keySz, (int)stmCtx->buffLen,
+        (int)stmCtx->fifoBytes);
 #endif
 
     /* turn on hash clock */
     STM32_HASH_CLOCK_ENABLE(stmCtx);
 
     /* restore HMAC context */
-    wc_Stm32_Hash_RestoreContext(stmCtx, algo);
+    wc_Stm32_Hash_RestoreContext(stmCtx, algo, HASH_ALGOMODE_HMAC);
 
     /* finish reading any trailing bytes into FIFO */
     if (stmCtx->buffLen > 0) {
