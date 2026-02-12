@@ -1042,10 +1042,13 @@ int wc_HmacFinal(Hmac* hmac, byte* hash)
             ret = wc_Stm32_Hmac_Final(&hmac->stmCtx, hmac->stmAlgo,
                 (const byte*)hmac->ipad, hmac->stmKeyLen, hash,
                 hmac->stmDigestSize);
+            /* Re-run Phase 1 so HMAC is ready for next Update/Final cycle
+             * (needed for PRF/HKDF loops that reuse the same key) */
+            if (ret == 0) {
+                ret = wc_Stm32_Hmac_SetKey(&hmac->stmCtx, hmac->macType,
+                    (const byte*)hmac->ipad, hmac->stmKeyLen);
+            }
             wolfSSL_CryptHwMutexUnLock();
-        }
-        if (ret == 0) {
-            hmac->innerHashKeyed = 0;
         }
         return ret;
     }
