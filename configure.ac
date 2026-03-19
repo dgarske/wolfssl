@@ -7051,6 +7051,18 @@ then
     AM_CFLAGS="$AM_CFLAGS -DHAVE_ASCON"
 fi
 
+# PUF
+AC_ARG_ENABLE([puf],
+    [AS_HELP_STRING([--enable-puf],[Enable SRAM PUF support (default: disabled)])],
+    [ ENABLED_PUF=$enableval ],
+    [ ENABLED_PUF=no ]
+    )
+
+if test "$ENABLED_PUF" = "yes"
+then
+    AM_CFLAGS="$AM_CFLAGS -DWOLFSSL_PUF -DWOLFSSL_PUF_SRAM"
+fi
+
 # Hash DRBG
 AC_ARG_ENABLE([hashdrbg],
     [AS_HELP_STRING([--enable-hashdrbg],[Enable Hash DRBG support (default: enabled)])],

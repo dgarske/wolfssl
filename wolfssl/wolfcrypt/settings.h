@@ -148,6 +148,16 @@
 /* Uncomment next line if using STM32F7 */
 /* #define WOLFSSL_STM32F7 */
 
+/* Uncomment next line to enable SRAM PUF support */
+/* #define WOLFSSL_PUF */
+/* #define WOLFSSL_PUF_SRAM */
+
+/* Auto-detect STM32F4 for PUF SRAM support */
+#if defined(STM32F4xx) && !defined(WOLFSSL_PUF)
+    #define WOLFSSL_PUF
+    #define WOLFSSL_PUF_SRAM
+#endif
+
 /* Uncomment next line if using QL SEP settings */
 /* #define WOLFSSL_QL */
 

@@ -1690,6 +1690,17 @@ endif()
 
 # TODO: - XCHACHA
 
+# SRAM PUF
+add_option("WOLFSSL_PUF"
+    "Enable SRAM PUF support (default: disabled)"
+    "no" "yes;no")
+
+if(WOLFSSL_PUF)
+    list(APPEND WOLFSSL_DEFINITIONS
+        "-DWOLFSSL_PUF"
+        "-DWOLFSSL_PUF_SRAM")
+endif()
+
 # Hash DRBG
 add_option("WOLFSSL_HASH_DRBG"
     "Enable Hash DRBG support (default: enabled)"
