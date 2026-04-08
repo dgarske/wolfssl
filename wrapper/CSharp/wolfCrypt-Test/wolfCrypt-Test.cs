@@ -880,6 +880,117 @@ public class wolfCrypt_Test_CSharp
         }
     } /* END hash_test */
 
+    private static void hpke_test()
+    {
+        IntPtr hpke = IntPtr.Zero;
+        IntPtr receiverKey = IntPtr.Zero;
+        IntPtr deserializedKey = IntPtr.Zero;
+        IntPtr ephemeralKey = IntPtr.Zero;
+
+        wolfcrypt.HpkeKem kem = wolfcrypt.HpkeKem.DHKEM_P256_HKDF_SHA256;
+        wolfcrypt.HpkeKdf kdf = wolfcrypt.HpkeKdf.HKDF_SHA256;
+        wolfcrypt.HpkeAead aead = wolfcrypt.HpkeAead.AES_128_GCM;
+
+        try
+        {
+            Console.WriteLine("\nStarting HPKE Base mode test...");
+
+            /* Initialize HPKE context */
+            Console.WriteLine("Initializing HPKE context...");
+            hpke = wolfcrypt.HpkeInit(kem, kdf, aead);
+            if (hpke == IntPtr.Zero)
+            {
+                throw new Exception("HpkeInit failed");
+            }
+            Console.WriteLine("HPKE context initialization passed.");
+
+            /* Generate receiver keypair */
+            Console.WriteLine("Generating receiver keypair...");
+            receiverKey = wolfcrypt.HpkeGenerateKeyPair(hpke);
+            if (receiverKey == IntPtr.Zero)
+            {
+                throw new Exception("HpkeGenerateKeyPair (receiver) failed");
+            }
+            Console.WriteLine("Receiver keypair generation passed.");
+
+            /* Serialize and deserialize public key (round-trip) */
+            Console.WriteLine("Testing public key serialize/deserialize round-trip...");
+            byte[] pubKeyBytes = wolfcrypt.HpkeSerializePublicKey(hpke, receiverKey);
+            if (pubKeyBytes == null)
+            {
+                throw new Exception("HpkeSerializePublicKey failed");
+            }
+            Console.WriteLine($"Serialized public key length: {pubKeyBytes.Length}");
+
+            deserializedKey = wolfcrypt.HpkeDeserializePublicKey(hpke, pubKeyBytes);
+            if (deserializedKey == IntPtr.Zero)
+            {
+                throw new Exception("HpkeDeserializePublicKey failed");
+            }
+
+            /* Verify round-trip by re-serializing */
+            byte[] pubKeyBytes2 = wolfcrypt.HpkeSerializePublicKey(hpke, deserializedKey);
+            if (pubKeyBytes2 == null || !wolfcrypt.ByteArrayVerify(pubKeyBytes, pubKeyBytes2))
+            {
+                throw new Exception("Public key round-trip verification failed");
+            }
+            Console.WriteLine("Public key round-trip test passed.");
+
+            /* Generate ephemeral keypair for sender */
+            Console.WriteLine("Generating ephemeral keypair...");
+            ephemeralKey = wolfcrypt.HpkeGenerateKeyPair(hpke);
+            if (ephemeralKey == IntPtr.Zero)
+            {
+                throw new Exception("HpkeGenerateKeyPair (ephemeral) failed");
+            }
+            Console.WriteLine("Ephemeral keypair generation passed.");
+
+            /* Define test data */
+            byte[] info = Encoding.UTF8.GetBytes("HPKE .NET Test");
+            byte[] aad = Encoding.UTF8.GetBytes("additional data");
+            byte[] plaintext = Encoding.UTF8.GetBytes("Hello HPKE from wolfCrypt .NET!");
+
+            /* Seal (encrypt) */
+            Console.WriteLine("Testing HpkeSealBase...");
+            byte[] encCiphertext = wolfcrypt.HpkeSealBase(hpke, ephemeralKey,
+                receiverKey, info, aad, plaintext);
+            if (encCiphertext == null)
+            {
+                throw new Exception("HpkeSealBase failed");
+            }
+            Console.WriteLine($"HpkeSealBase passed. Output length: {encCiphertext.Length}");
+
+            /* Open (decrypt) */
+            Console.WriteLine("Testing HpkeOpenBase...");
+            byte[] decrypted = wolfcrypt.HpkeOpenBase(hpke, receiverKey,
+                encCiphertext, info, aad, plaintext.Length);
+            if (decrypted == null)
+            {
+                throw new Exception("HpkeOpenBase failed");
+            }
+            Console.WriteLine("HpkeOpenBase passed.");
+
+            /* Compare plaintext and decrypted */
+            if (!wolfcrypt.ByteArrayVerify(plaintext, decrypted))
+            {
+                throw new Exception("Decrypted text does not match original plaintext");
+            }
+            Console.WriteLine("HPKE Base mode test PASSED.");
+        }
+        finally
+        {
+            /* Cleanup */
+            if (ephemeralKey != IntPtr.Zero)
+                wolfcrypt.HpkeFreeKey(hpke, ephemeralKey, kem);
+            if (deserializedKey != IntPtr.Zero)
+                wolfcrypt.HpkeFreeKey(hpke, deserializedKey, kem);
+            if (receiverKey != IntPtr.Zero)
+                wolfcrypt.HpkeFreeKey(hpke, receiverKey, kem);
+            if (hpke != IntPtr.Zero)
+                wolfcrypt.HpkeFree(hpke);
+        }
+    } /* END hpke_test */
+
     public static void standard_log(int lvl, StringBuilder msg)
     {
         Console.WriteLine(msg);
@@ -940,6 +1051,10 @@ public class wolfCrypt_Test_CSharp
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA384); /* SHA-384 HASH test */
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA512); /* SHA-512 HASH test */
             hash_test((uint)wolfcrypt.hashType.WC_HASH_TYPE_SHA3_256); /* SHA3_256 HASH test */
+
+            Console.WriteLine("\nStarting HPKE tests");
+
+            hpke_test(); /* HPKE Base mode test */
 
             wolfcrypt.Cleanup();
 

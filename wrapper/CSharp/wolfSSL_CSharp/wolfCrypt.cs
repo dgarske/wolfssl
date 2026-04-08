@@ -470,6 +470,43 @@ namespace wolfSSL.CSharp
 
 
         /********************************
+         * HPKE
+         * Requires: HAVE_HPKE, HAVE_ECC (or HAVE_CURVE25519), HAVE_AESGCM
+         */
+#if WindowsCE
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeInit(IntPtr hpke, int kem, int kdf, int aead, IntPtr heap);
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeGenerateKeyPair(IntPtr hpke, ref IntPtr keypair, IntPtr rng);
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeSerializePublicKey(IntPtr hpke, IntPtr key, byte[] outBuf, ref ushort outSz);
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeDeserializePublicKey(IntPtr hpke, ref IntPtr key, byte[] inBuf, ushort inSz);
+        [DllImport(wolfssl_dll)]
+        private extern static void wc_HpkeFreeKey(IntPtr hpke, ushort kem, IntPtr keypair, IntPtr heap);
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeSealBase(IntPtr hpke, IntPtr ephemeralKey, IntPtr receiverKey, byte[] info, uint infoSz, byte[] aad, uint aadSz, byte[] plaintext, uint ptSz, byte[] ciphertext);
+        [DllImport(wolfssl_dll)]
+        private extern static int wc_HpkeOpenBase(IntPtr hpke, IntPtr receiverKey, byte[] pubKey, ushort pubKeySz, byte[] info, uint infoSz, byte[] aad, uint aadSz, byte[] ciphertext, uint ctSz, byte[] plaintext);
+#else
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeInit(IntPtr hpke, int kem, int kdf, int aead, IntPtr heap);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeGenerateKeyPair(IntPtr hpke, ref IntPtr keypair, IntPtr rng);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeSerializePublicKey(IntPtr hpke, IntPtr key, byte[] outBuf, ref ushort outSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeDeserializePublicKey(IntPtr hpke, ref IntPtr key, byte[] inBuf, ushort inSz);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static void wc_HpkeFreeKey(IntPtr hpke, ushort kem, IntPtr keypair, IntPtr heap);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeSealBase(IntPtr hpke, IntPtr ephemeralKey, IntPtr receiverKey, byte[] info, uint infoSz, byte[] aad, uint aadSz, byte[] plaintext, uint ptSz, byte[] ciphertext);
+        [DllImport(wolfssl_dll, CallingConvention = CallingConvention.Cdecl)]
+        private extern static int wc_HpkeOpenBase(IntPtr hpke, IntPtr receiverKey, byte[] pubKey, ushort pubKeySz, byte[] info, uint infoSz, byte[] aad, uint aadSz, byte[] ciphertext, uint ctSz, byte[] plaintext);
+#endif
+
+
+        /********************************
          * HASH
          */
 #if WindowsCE
@@ -3190,6 +3227,383 @@ namespace wolfSSL.CSharp
             WC_HASH_TYPE_BLAKE2S  = 15,
         }
         /* END HASH */
+
+
+        /***********************************************************************
+         * HPKE (RFC 9180) - Base mode SingleShot
+         * Requires: HAVE_HPKE, HAVE_ECC (or HAVE_CURVE25519), HAVE_AESGCM
+         **********************************************************************/
+
+        /* BEGIN HPKE */
+
+        /* HPKE KEM IDs */
+        public enum HpkeKem : ushort {
+            DHKEM_P256_HKDF_SHA256  = 0x0010,
+            DHKEM_P384_HKDF_SHA384  = 0x0011,
+            DHKEM_P521_HKDF_SHA512  = 0x0012,
+            DHKEM_X25519_HKDF_SHA256 = 0x0020,
+            DHKEM_X448_HKDF_SHA512  = 0x0021,
+        }
+        /* HPKE KDF IDs */
+        public enum HpkeKdf : ushort {
+            HKDF_SHA256 = 0x0001,
+            HKDF_SHA384 = 0x0002,
+            HKDF_SHA512 = 0x0003,
+        }
+        /* HPKE AEAD IDs */
+        public enum HpkeAead : ushort {
+            AES_128_GCM = 0x0001,
+            AES_256_GCM = 0x0002,
+        }
+
+        /* HPKE Nt (GCM tag length) */
+        private static readonly int HPKE_Nt = 16;
+
+        /* Hpke struct is ~80 bytes on 64-bit (see hpke.h). Over-allocate to
+         * accommodate future growth and platform alignment differences. */
+        private static readonly int HPKE_STRUCT_SZ = 512;
+
+        /// <summary>
+        /// Get the enc (encapsulated key) length for a given KEM
+        /// </summary>
+        /// <param name="kem">KEM identifier</param>
+        /// <returns>Length in bytes</returns>
+        private static ushort HpkeEncLen(HpkeKem kem)
+        {
+            switch (kem)
+            {
+                case HpkeKem.DHKEM_P256_HKDF_SHA256:  return 65;
+                case HpkeKem.DHKEM_P384_HKDF_SHA384:  return 97;
+                case HpkeKem.DHKEM_P521_HKDF_SHA512:  return 133;
+                case HpkeKem.DHKEM_X25519_HKDF_SHA256: return 32;
+                case HpkeKem.DHKEM_X448_HKDF_SHA512:  return 56;
+                default: return 0;
+            }
+        }
+
+        /// <summary>
+        /// Allocate and initialize an HPKE context
+        /// </summary>
+        /// <param name="kem">KEM algorithm identifier</param>
+        /// <param name="kdf">KDF algorithm identifier</param>
+        /// <param name="aead">AEAD algorithm identifier</param>
+        /// <returns>Pointer to allocated Hpke context or IntPtr.Zero on failure</returns>
+        public static IntPtr HpkeInit(HpkeKem kem, HpkeKdf kdf, HpkeAead aead)
+        {
+            IntPtr hpke = IntPtr.Zero;
+
+            try
+            {
+                hpke = Marshal.AllocHGlobal(HPKE_STRUCT_SZ);
+                if (hpke == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE alloc failed");
+                    return IntPtr.Zero;
+                }
+
+                /* Zero the memory */
+                for (int i = 0; i < HPKE_STRUCT_SZ; i++)
+                {
+                    Marshal.WriteByte(hpke, i, 0);
+                }
+
+                int ret = wc_HpkeInit(hpke, (int)kem, (int)kdf, (int)aead, IntPtr.Zero);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE init failed " + ret + ": " + GetError(ret));
+                    Marshal.FreeHGlobal(hpke);
+                    return IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE init exception " + e.ToString());
+                if (hpke != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(hpke);
+                }
+                return IntPtr.Zero;
+            }
+
+            return hpke;
+        }
+
+        /// <summary>
+        /// Generate a new HPKE keypair
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <returns>Pointer to keypair or IntPtr.Zero on failure</returns>
+        public static IntPtr HpkeGenerateKeyPair(IntPtr hpke)
+        {
+            IntPtr keypair = IntPtr.Zero;
+            IntPtr rng = IntPtr.Zero;
+
+            try
+            {
+                if (hpke == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE generate keypair: invalid context");
+                    return IntPtr.Zero;
+                }
+
+                rng = RandomNew();
+                if (rng == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE generate keypair: RNG init failed");
+                    return IntPtr.Zero;
+                }
+
+                int ret = wc_HpkeGenerateKeyPair(hpke, ref keypair, rng);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE generate keypair failed " + ret + ": " + GetError(ret));
+                    keypair = IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE generate keypair exception " + e.ToString());
+                keypair = IntPtr.Zero;
+            }
+            finally
+            {
+                if (rng != IntPtr.Zero) RandomFree(rng);
+            }
+
+            return keypair;
+        }
+
+        /// <summary>
+        /// Serialize the public key to bytes
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <param name="keypair">Keypair from HpkeGenerateKeyPair()</param>
+        /// <returns>Serialized public key bytes or null on failure</returns>
+        public static byte[] HpkeSerializePublicKey(IntPtr hpke, IntPtr keypair)
+        {
+            try
+            {
+                if (hpke == IntPtr.Zero || keypair == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE serialize public key: invalid parameter");
+                    return null;
+                }
+
+                ushort outSz = 133; /* HPKE_Npk_MAX */
+                byte[] outBuf = new byte[outSz];
+
+                int ret = wc_HpkeSerializePublicKey(hpke, keypair, outBuf, ref outSz);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE serialize public key failed " + ret + ": " + GetError(ret));
+                    return null;
+                }
+
+                /* Trim to actual size */
+                byte[] result = new byte[outSz];
+                Array.Copy(outBuf, 0, result, 0, outSz);
+                return result;
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE serialize public key exception " + e.ToString());
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Deserialize a public key from bytes
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <param name="pubKeyBytes">Serialized public key bytes</param>
+        /// <returns>Pointer to keypair or IntPtr.Zero on failure</returns>
+        public static IntPtr HpkeDeserializePublicKey(IntPtr hpke, byte[] pubKeyBytes)
+        {
+            IntPtr key = IntPtr.Zero;
+
+            try
+            {
+                if (hpke == IntPtr.Zero || pubKeyBytes == null || pubKeyBytes.Length == 0)
+                {
+                    log(ERROR_LOG, "HPKE deserialize public key: invalid parameter");
+                    return IntPtr.Zero;
+                }
+
+                int ret = wc_HpkeDeserializePublicKey(hpke, ref key, pubKeyBytes, (ushort)pubKeyBytes.Length);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE deserialize public key failed " + ret + ": " + GetError(ret));
+                    return IntPtr.Zero;
+                }
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE deserialize public key exception " + e.ToString());
+                return IntPtr.Zero;
+            }
+
+            return key;
+        }
+
+        /// <summary>
+        /// Free a keypair created by HpkeGenerateKeyPair or HpkeDeserializePublicKey
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <param name="keypair">Keypair to free</param>
+        /// <param name="kem">KEM used when the keypair was created</param>
+        public static void HpkeFreeKey(IntPtr hpke, IntPtr keypair, HpkeKem kem)
+        {
+            if (hpke != IntPtr.Zero && keypair != IntPtr.Zero)
+            {
+                wc_HpkeFreeKey(hpke, (ushort)kem, keypair, IntPtr.Zero);
+            }
+        }
+
+        /// <summary>
+        /// Free an HPKE context allocated by HpkeInit
+        /// </summary>
+        /// <param name="hpke">HPKE context to free</param>
+        public static void HpkeFree(IntPtr hpke)
+        {
+            if (hpke != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(hpke);
+            }
+        }
+
+        /// <summary>
+        /// SingleShot seal (encrypt) using HPKE Base mode.
+        /// Returns enc||ciphertext as a single byte array.
+        /// The enc length is determined by the KEM (e.g. 65 bytes for P-256).
+        /// Ciphertext length = plaintext length + Nt (16-byte GCM tag).
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <param name="ephemeralKey">Ephemeral keypair for sender</param>
+        /// <param name="receiverKey">Receiver public key</param>
+        /// <param name="info">Info context bytes (can be null)</param>
+        /// <param name="aad">Additional authenticated data (can be null)</param>
+        /// <param name="plaintext">Plaintext to encrypt</param>
+        /// <returns>enc||ciphertext byte array or null on failure</returns>
+        public static byte[] HpkeSealBase(IntPtr hpke, IntPtr ephemeralKey, IntPtr receiverKey,
+            byte[] info, byte[] aad, byte[] plaintext)
+        {
+            try
+            {
+                if (hpke == IntPtr.Zero || ephemeralKey == IntPtr.Zero || receiverKey == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE seal base: invalid parameter");
+                    return null;
+                }
+                if (plaintext == null || plaintext.Length == 0)
+                {
+                    log(ERROR_LOG, "HPKE seal base: invalid plaintext");
+                    return null;
+                }
+
+                /* Serialize the ephemeral public key (enc) */
+                byte[] enc = HpkeSerializePublicKey(hpke, ephemeralKey);
+                if (enc == null)
+                {
+                    log(ERROR_LOG, "HPKE seal base: failed to serialize ephemeral key");
+                    return null;
+                }
+
+                uint infoSz = (info != null) ? (uint)info.Length : 0;
+                uint aadSz = (aad != null) ? (uint)aad.Length : 0;
+                uint ptSz = (uint)plaintext.Length;
+
+                /* wc_HpkeSealBase outputs ptSz + Nt (GCM tag) bytes */
+                int sealLen = (int)ptSz + HPKE_Nt;
+                byte[] sealOut = new byte[sealLen];
+
+                int ret = wc_HpkeSealBase(hpke, ephemeralKey, receiverKey,
+                    info, infoSz, aad, aadSz, plaintext, ptSz, sealOut);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE seal base failed " + ret + ": " + GetError(ret));
+                    return null;
+                }
+
+                /* Return enc || sealOut */
+                byte[] result = new byte[enc.Length + sealLen];
+                Array.Copy(enc, 0, result, 0, enc.Length);
+                Array.Copy(sealOut, 0, result, enc.Length, sealLen);
+                return result;
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE seal base exception " + e.ToString());
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// SingleShot open (decrypt) using HPKE Base mode.
+        /// Takes the full enc||ciphertext blob returned by HpkeSealBase.
+        /// </summary>
+        /// <param name="hpke">HPKE context from HpkeInit()</param>
+        /// <param name="receiverKey">Receiver private keypair</param>
+        /// <param name="encCiphertext">enc||ciphertext blob from HpkeSealBase()</param>
+        /// <param name="info">Info context bytes (can be null)</param>
+        /// <param name="aad">Additional authenticated data (can be null)</param>
+        /// <param name="ptLen">Expected plaintext length</param>
+        /// <returns>Decrypted plaintext byte array or null on failure</returns>
+        public static byte[] HpkeOpenBase(IntPtr hpke, IntPtr receiverKey,
+            byte[] encCiphertext, byte[] info, byte[] aad, int ptLen)
+        {
+            try
+            {
+                if (hpke == IntPtr.Zero || receiverKey == IntPtr.Zero)
+                {
+                    log(ERROR_LOG, "HPKE open base: invalid parameter");
+                    return null;
+                }
+                if (encCiphertext == null || encCiphertext.Length == 0)
+                {
+                    log(ERROR_LOG, "HPKE open base: invalid ciphertext");
+                    return null;
+                }
+
+                /* encCiphertext = enc || ciphertext || GCM tag
+                 * where ciphertext is ptLen bytes, tag is Nt bytes */
+                int sealLen = ptLen + HPKE_Nt;
+                if (ptLen < 0 || encCiphertext.Length < sealLen)
+                {
+                    log(ERROR_LOG, "HPKE open base: encCiphertext too short for given ptLen");
+                    return null;
+                }
+                ushort pubKeySz = (ushort)(encCiphertext.Length - sealLen);
+
+                /* Split enc and sealed data (ciphertext || tag) */
+                byte[] pubKey = new byte[pubKeySz];
+                byte[] ct = new byte[sealLen];
+                Array.Copy(encCiphertext, 0, pubKey, 0, pubKeySz);
+                Array.Copy(encCiphertext, pubKeySz, ct, 0, sealLen);
+
+                uint infoSz = (info != null) ? (uint)info.Length : 0;
+                uint aadSz = (aad != null) ? (uint)aad.Length : 0;
+
+                byte[] plaintext = new byte[ptLen];
+
+                /* ctSz is just the ciphertext length (without tag);
+                 * wc_HpkeContextOpenBase reads the tag from ct + ctSz */
+                int ret = wc_HpkeOpenBase(hpke, receiverKey, pubKey, pubKeySz,
+                    info, infoSz, aad, aadSz, ct, (uint)ptLen, plaintext);
+                if (ret != 0)
+                {
+                    log(ERROR_LOG, "HPKE open base failed " + ret + ": " + GetError(ret));
+                    return null;
+                }
+
+                return plaintext;
+            }
+            catch (Exception e)
+            {
+                log(ERROR_LOG, "HPKE open base exception " + e.ToString());
+                return null;
+            }
+        }
+        /* END HPKE */
 
 
         /***********************************************************************
