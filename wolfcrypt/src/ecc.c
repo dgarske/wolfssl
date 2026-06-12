@@ -7039,8 +7039,9 @@ int wc_ecc_sign_hash_ex(const byte* in, word32 inlen, WC_RNG* rng,
     return stm32_ecc_sign_hash_ex(in, inlen, rng, key, r, s);
 }
 
-#if defined(WOLFSSL_DHUK) && defined(WOLFSSL_STM32_BARE) && \
-    defined(WC_STM32_HAS_DHUK)
+#if defined(WOLFSSL_DHUK) && \
+    ((defined(WOLFSSL_STM32_BARE) && defined(WC_STM32_HAS_DHUK)) || \
+     defined(WOLFSSL_REALTEK_HUK))
 /* Import a hardware-wrapped ECC private scalar + its derivation seed onto the
  * ecc_key for the DHUK crypto-callback sign path. The scalar is AES-encrypted
  * (offline or on-chip) with the device key that the SAES derives from the seed;
@@ -7082,7 +7083,7 @@ int wc_ecc_import_wrapped_private(ecc_key* key, const byte* seed, word32 seedSz,
     key->dhuk_seed_sz          = seedSz;
     return 0;
 }
-#endif /* WOLFSSL_DHUK && WOLFSSL_STM32_BARE && WC_STM32_HAS_DHUK */
+#endif /* WOLFSSL_DHUK && ((STM32_BARE && WC_STM32_HAS_DHUK) || REALTEK_HUK) */
 
 #elif !defined(WOLFSSL_ATECC508A) && !defined(WOLFSSL_ATECC608A) && \
       !defined(WOLFSSL_MICROCHIP_TA100) && \

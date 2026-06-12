@@ -3210,6 +3210,25 @@ case "$ENABLED_STSAFE" in
 esac
 
 
+# RealTek AmebaPro2 (RTL8735B) HUK crypto-callback port.
+# On-target the application supplies the AmebaPro2 HAL include path. This option
+# is a host compile-test of the port: it swaps the HAL headers for a shim
+# (WOLFSSL_AMEBAPRO2_HOST_TEST) so the cryptocb dispatch and wiring build without
+# the vendor SDK. It forces crypto callbacks on (see the cryptocb block).
+# Example: "./configure --enable-amebapro2"
+ENABLED_AMEBAPRO2="no"
+AC_ARG_ENABLE([amebapro2],
+    [AS_HELP_STRING([--enable-amebapro2],
+        [Enable RealTek AmebaPro2 (RTL8735B) HUK crypto-callback port (host compile-test).])],
+    [ ENABLED_AMEBAPRO2=$enableval ],
+    [ ENABLED_AMEBAPRO2=no ])
+
+if test "x$ENABLED_AMEBAPRO2" != "xno"
+then
+    AM_CFLAGS="$AM_CFLAGS -DWOLFSSL_REALTEK_HUK -DWOLFSSL_AMEBAPRO2_HOST_TEST -DHAVE_AES_ECB"
+fi
+
+
 # NXP SE050
 # Example: "./configure --with-se050=/home/pi/simw_top"
 ENABLED_SE050="no"
@@ -10678,7 +10697,7 @@ AC_ARG_ENABLE([cryptocb-sw-test],
     [ ENABLED_CRYPTOCB_SW_TEST=yes ]
     )
 
-if test "x$ENABLED_PKCS11" = "xyes" || test "x$ENABLED_WOLFTPM" = "xyes" || test "$ENABLED_CAAM" != "no"
+if test "x$ENABLED_PKCS11" = "xyes" || test "x$ENABLED_WOLFTPM" = "xyes" || test "$ENABLED_CAAM" != "no" || test "x$ENABLED_AMEBAPRO2" != "xno"
 then
     ENABLED_CRYPTOCB=yes
 fi
@@ -12430,6 +12449,7 @@ AM_CONDITIONAL([BUILD_IOTSAFE],[test "x$ENABLED_IOTSAFE" = "xyes"])
 AM_CONDITIONAL([BUILD_IOTSAFE_HWRNG],[test "x$ENABLED_IOTSAFE_HWRNG" = "xyes"])
 AM_CONDITIONAL([BUILD_SE050],[test "x$ENABLED_SE050" = "xyes"])
 AM_CONDITIONAL([BUILD_STSAFE],[test "x$ENABLED_STSAFE" != "xno"])
+AM_CONDITIONAL([BUILD_AMEBAPRO2],[test "x$ENABLED_AMEBAPRO2" != "xno"])
 AM_CONDITIONAL([BUILD_TROPIC01],[test "x$ENABLED_TROPIC01" = "xyes"])
 AM_CONDITIONAL([BUILD_KDF],[test "x$ENABLED_KDF" = "xyes"])
 AM_CONDITIONAL([BUILD_HMAC],[test "x$ENABLED_HMAC" = "xyes"])
@@ -13009,6 +13029,7 @@ echo "   * IoT-Safe:                   $ENABLED_IOTSAFE"
 echo "   * IoT-Safe HWRNG:             $ENABLED_IOTSAFE_HWRNG"
 echo "   * NXP SE050:                  $ENABLED_SE050"
 echo "   * STMicro STSAFE:             $ENABLED_STSAFE"
+echo "   * RealTek AmebaPro2 HUK:      $ENABLED_AMEBAPRO2"
 echo "   * TROPIC01:                   $ENABLED_TROPIC01"
 echo "   * Maxim Integrated MAXQ10XX:  $ENABLED_MAXQ10XX"
 echo "   * PSA:                        $ENABLED_PSA"

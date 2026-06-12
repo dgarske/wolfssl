@@ -4223,6 +4223,14 @@
 
 /* Place any other flags or defines here */
 
+/* RealTek AmebaPro2 (RTL8735B) HUK port reuses the vendor-neutral DHUK seed /
+ * wrapped-key plumbing (ecc.c / ecc.h). Imply WOLFSSL_DHUK here so it is set
+ * before aes.h / ecc.h evaluate the shared guards. The port's own header
+ * (port/realtek/amebapro2.h) enforces the WOLF_CRYPTO_CB requirement. */
+#if defined(WOLFSSL_REALTEK_HUK) && !defined(WOLFSSL_DHUK)
+    #define WOLFSSL_DHUK
+#endif
+
 #if defined(WOLFSSL_MYSQL_COMPATIBLE) && defined(_WIN32) \
                                       && defined(HAVE_GMTIME_R)
     #undef HAVE_GMTIME_R /* don't trust macro with windows */
