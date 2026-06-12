@@ -160,6 +160,13 @@
         #define WC_STM32_HASH_CLK_DISABLE() \
             WC_STM32_CLK_DIS(AHB2ENR1, RCC_AHB2ENR1_HASHEN)
     #endif
+    /* CCB (Coupling and Chaining Bridge) clock -- U3 only. */
+    #ifdef RCC_AHB2ENR1_CCBEN
+        #define WC_STM32_CCB_CLK_ENABLE() \
+            WC_STM32_CLK_EN(AHB2ENR1, RCC_AHB2ENR1_CCBEN)
+        #define WC_STM32_CCB_CLK_DISABLE() \
+            WC_STM32_CLK_DIS(AHB2ENR1, RCC_AHB2ENR1_CCBEN)
+    #endif
     #define WC_STM32_RNG_CLK_ENABLE() \
         WC_STM32_CLK_EN(AHB2ENR1, RCC_AHB2ENR1_RNGEN)
 #elif defined(WOLFSSL_STM32G0)
@@ -795,6 +802,53 @@ int wc_Stm32_Hmac_Final(STM32_HASH_Context* stmCtx, word32 algo,
     #define WC_STM32_HAS_DHUK
 #endif
 
+/* CCB (Coupling and Chaining Bridge) gate: STM32U3 silicon (e.g. U385) carries
+ * the CCB peripheral (RM0487 ch 31) that chains PKA <-> SAES <-> RNG over a
+ * local interconnect, so a DHUK-protected private key is used by the PKA
+ * without ever entering software / crossing the system bus.
+ * STM32C5 (e.g. C5A3) and STM32H5 also carry CCB, but the C5 enablement is
+ * open work (its HW PKA protected-mode path + the different SAES GCM-phase
+ * mechanism are unresolved), so the gate stays U3-only for now. U5 / WBA do
+ * not have CCB. */
+#if defined(WOLFSSL_DHUK) && defined(WOLFSSL_STM32U3)
+    #define WC_STM32_HAS_CCB
+#endif
+
+/* CCB register-name differences across families, so the bare CCB OPSTEP driver
+ * stays family-neutral (the state machine is shared; only these names differ).
+ * U3 uses the banked AHB2*1 RCC names + CCB_SR_BUSY; C5 uses the un-banked
+ * AHB2* names + CCB_SR_CCB_BUSY. The C5 mapping is provided so a future C5 CCB
+ * enablement (once its PKA + SAES GCM-phase paths land) slots in by extending
+ * WC_STM32_HAS_CCB; it is dead while the gate is U3-only. */
+#ifdef WC_STM32_HAS_CCB
+    #if defined(WOLFSSL_STM32C5)
+        #define WC_STM32_CCB_SR_BUSY   CCB_SR_CCB_BUSY
+        #define WC_STM32_CCB_RSTR      AHB2RSTR
+        #define WC_STM32_CCB_RST_PKA   RCC_AHB2RSTR_PKARST
+        #define WC_STM32_CCB_RST_SAES  RCC_AHB2RSTR_SAESRST
+        #define WC_STM32_CCB_RST_RNG   RCC_AHB2RSTR_RNGRST
+    #else /* WOLFSSL_STM32U3 */
+        #define WC_STM32_CCB_SR_BUSY   CCB_SR_BUSY
+        #define WC_STM32_CCB_RSTR      AHB2RSTR1
+        #define WC_STM32_CCB_RST_PKA   RCC_AHB2RSTR1_PKARST
+        #define WC_STM32_CCB_RST_SAES  RCC_AHB2RSTR1_SAESRST
+        #define WC_STM32_CCB_RST_RNG   RCC_AHB2RSTR1_RNGRST
+    #endif
+#endif
+
+/* WOLFSSL_STM32_CCB opts in to the CCB-protected ECDSA path (on-device blob
+ * create + use). Supported on both build paths: the bare-metal direct-register
+ * driver (WOLFSSL_STM32_BARE) and the CubeMX/HAL path (WOLFSSL_STM32_CUBEMX,
+ * via ST's HAL_CCB_* driver). Requires CCB silicon (STM32U3). */
+#if defined(WOLFSSL_STM32_CCB)
+    #if !defined(WOLFSSL_STM32_BARE) && !defined(WOLFSSL_STM32_CUBEMX)
+        #error "WOLFSSL_STM32_CCB requires WOLFSSL_STM32_BARE or WOLFSSL_STM32_CUBEMX"
+    #endif
+    #if !defined(WC_STM32_HAS_CCB)
+        #error "WOLFSSL_STM32_CCB requires CCB silicon (STM32U3, e.g. U385)"
+    #endif
+#endif
+
 /* Transparent DHUK crypto flows through the crypto-callback framework, so
  * WOLF_CRYPTO_CB is mandatory whenever DHUK is enabled. */
 #if defined(WOLFSSL_DHUK) && !defined(WOLF_CRYPTO_CB)
@@ -855,6 +909,41 @@ int stm32_ecc_sign_hash_ex(const byte* hash, word32 hashlen, struct WC_RNG* rng,
 #endif
 
 #endif /* WOLFSSL_STM32_BARE && WC_STM32_HAS_DHUK */
+
+/* CubeMX CCB build: DHUK AES/GMAC is bare-only, but the CCB-protected ECDSA
+ * sign routes through the crypto-callback device too, so expose the same
+ * register/unregister entry points under the HAL build. */
+#if defined(WOLFSSL_STM32_CUBEMX) && defined(WOLFSSL_STM32_CCB) && \
+    defined(WOLF_CRYPTO_CB)
+    int  wc_Stm32_DhukRegister(int devId);
+    void wc_Stm32_DhukUnRegister(int devId);
+#endif
+
+/* CCB (Coupling and Chaining Bridge) HW-protected DHUK->PKA ECDSA -- STM32U3
+ * (e.g. U385). Available on both build paths: WOLFSSL_STM32_BARE (direct
+ * register driver) and WOLFSSL_STM32_CUBEMX (ST HAL_CCB_* driver). The blob is
+ * an AES-GCM authenticated wrap of the ECC private scalar under the CCB-active
+ * DHUK; the scalar never enters software. Currently P-256 (ECC_SECP256R1). */
+#ifdef WOLFSSL_STM32_CCB
+    /* Bare-only: bring up the CCB and report usability (clocks + IPRST + BUSY
+     * clear, no OPERR). Returns 0 on success. */
+    int wc_Stm32_CcbInit(void);
+
+    /* Create a CCB ECDSA-signature blob from a clear private scalar d (and its
+     * derived public key) on-device. The scalar is wrapped under the DHUK; the
+     * blob (iv[16] + tag[16] + wrapped d) and public key (pubX[32]/pubY[32])
+     * are returned. The HW self-verifies the blob before returning. */
+    int wc_Stm32_Ccb_EccMakeBlob(int curveId, const byte* d, word32 dLen,
+        byte* iv, byte* tag, byte* wrapped, word32* wrappedSz,
+        byte* pubX, byte* pubY);
+
+    /* Sign hash with a CCB ECDSA blob. The scalar is unwrapped inside the
+     * hardware (SAES->PKA over the CCB local bus) and never enters software.
+     * r[32]/s[32] receive the signature. */
+    int wc_Stm32_Ccb_EccSign(int curveId, const byte* iv, const byte* tag,
+        const byte* wrapped, word32 wrappedSz, const byte* hash, word32 hashSz,
+        byte* r, byte* s);
+#endif
 
 
 #endif /* _WOLFPORT_STM32_H_ */
