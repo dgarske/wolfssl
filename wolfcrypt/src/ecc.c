@@ -8065,6 +8065,113 @@ int wc_ecc_sign_set_k(const byte* k, word32 klen, ecc_key* key)
 #endif /* WOLFSSL_ECDSA_SET_K || WOLFSSL_ECDSA_SET_K_ONE_LOOP */
 #endif /* WOLFSSL_ATECC508A && WOLFSSL_CRYPTOCELL */
 
+#if defined(WOLFSSL_STM32_CCB)
+/* Load a previously provisioned device-protected ECDSA blob (wrapped scalar +
+ * AES-GCM iv/tag) and its public key onto the ecc_key. Sets the curve so the
+ * sign path can derive the parameters, and marks the key for the device
+ * crypto-callback. The caller enables the device with
+ * wc_ecc_init_ex(&key, heap, WC_DHUK_DEVID). Generic name -- the wrapping is
+ * the STM32 CCB, but the surface is not CCB-specific. */
+int wc_ecc_import_wrapped_private_ex(ecc_key* key, int curve_id,
+                           const byte* wrapped, word32 wrappedLen,
+                           const byte* iv, const byte* tag,
+                           const byte* pub, word32 pubLen)
+{
+    int modSz;
+    int ret;
+
+    if (key == NULL || wrapped == NULL || iv == NULL || tag == NULL ||
+        pub == NULL) {
+        return BAD_FUNC_ARG;
+    }
+    modSz = wc_ecc_get_curve_size_from_id(curve_id);
+    if (modSz <= 0) {
+        return BAD_FUNC_ARG;
+    }
+    if (wrappedLen == 0u || wrappedLen > sizeof(key->dhuk_wrapped_priv)) {
+        return BAD_FUNC_ARG;
+    }
+    if (pubLen != (word32)(2 * modSz)) {
+        return BAD_FUNC_ARG;
+    }
+    /* Import public key (qx||qy) + set the curve (key->dp). */
+    ret = wc_ecc_import_unsigned(key, pub, pub + modSz, NULL, curve_id);
+    if (ret != 0) {
+        return ret;
+    }
+    XMEMCPY(key->dhuk_wrapped_priv, wrapped, wrappedLen);
+    key->dhuk_wrapped_priv_len = wrappedLen;
+    XMEMCPY(key->ccb_iv,  iv,  sizeof(key->ccb_iv));
+    XMEMCPY(key->ccb_tag, tag, sizeof(key->ccb_tag));
+    key->dhuk_is_ccb = 1;
+    return 0;
+}
+
+/* Crypto-callback keygen handler (WC_PK_TYPE_EC_KEYGEN). Provisions a fresh
+ * device-protected key: generate a scalar, have the CCB wrap it into a
+ * device-bound blob and derive its public key, and store both on the ecc_key
+ * (the scalar is zeroized and never leaves this call / the hardware). The
+ * scalar is generated in software with the supplied rng on a throwaway key with
+ * no devId (so no callback recursion). Returns CRYPTOCB_UNAVAILABLE for curves
+ * the CCB cannot wrap so keygen falls back to software. Not a public entry
+ * point -- reached via wc_ecc_make_key() on a WC_DHUK_DEVID key. */
+int wc_ecc_dev_make_key(WC_RNG* rng, int keysize, ecc_key* key, int curve_id)
+{
+    ecc_key tmp;
+    byte    d[MAX_ECC_BYTES];
+    byte    pub[2 * MAX_ECC_BYTES];   /* qx || qy, contiguous */
+    byte    iv[16];
+    byte    tag[16];
+    byte    wrapped[96];
+    word32  dLen;
+    word32  wrappedSz = 0;
+    int     modSz;
+    int     ret;
+    int     tmpInit = 0;
+
+    (void)keysize;
+    if (rng == NULL || key == NULL) {
+        return BAD_FUNC_ARG;
+    }
+    /* wc_ecc_set_curve() ran before the callback, so key->dp is resolved even
+     * when curve_id came in as the default. */
+    if (curve_id <= 0 && key->dp != NULL) {
+        curve_id = key->dp->id;
+    }
+    modSz = wc_ecc_get_curve_size_from_id(curve_id);
+    if (modSz <= 0 || (word32)modSz > sizeof(d)) {
+        return CRYPTOCB_UNAVAILABLE;   /* unsupported -> software keygen */
+    }
+
+    ret = wc_ecc_init_ex(&tmp, key->heap, INVALID_DEVID);
+    if (ret == 0) {
+        tmpInit = 1;
+        ret = wc_ecc_make_key_ex(rng, modSz, &tmp, curve_id);
+    }
+    if (ret == 0) {
+        dLen = (word32)modSz;
+        ret = wc_ecc_export_private_only(&tmp, d, &dLen);
+    }
+    if (ret == 0) {
+        ret = wc_Stm32_Ccb_EccMakeBlob(curve_id, d, dLen, iv, tag, wrapped,
+                                       &wrappedSz, pub, pub + modSz);
+        if (ret != 0) {
+            ret = CRYPTOCB_UNAVAILABLE;   /* curve not CCB-wrappable -> SW */
+        }
+    }
+    if (ret == 0) {
+        ret = wc_ecc_import_wrapped_private_ex(key, curve_id, wrapped, wrappedSz,
+                                     iv, tag, pub, (word32)(2 * modSz));
+    }
+
+    ForceZero(d, sizeof(d));
+    if (tmpInit) {
+        wc_ecc_free(&tmp);
+    }
+    return ret;
+}
+#endif /* WOLFSSL_STM32_CCB */
+
 #endif /* !HAVE_ECC_SIGN */
 
 #ifdef WOLFSSL_CUSTOM_CURVES
