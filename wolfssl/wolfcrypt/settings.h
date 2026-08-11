@@ -436,6 +436,9 @@
 #if defined(WOLFSSL_VERSAL_GEN2_ASU)
     #include <wolfssl/wolfcrypt/port/xilinx/versal_gen2_asu/asu_settings.h>
 #endif
+#if defined(WOLFSSL_NXP_ELE)
+    #include <wolfssl/wolfcrypt/port/nxp/ele_settings.h>
+#endif
 
 /* Forward propagation of the legacy parent gate to the canonical name
  * (HAVE_DILITHIUM -> WOLFSSL_HAVE_MLDSA). Always active: required so that
