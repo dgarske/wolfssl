@@ -246,6 +246,16 @@ int wc_HKDF_Extract(
     and the key length specified is shorter than the minimum acceptable FIPS
     standard
 
+    \return WC_PENDING_E May be returned in a WOLF_CRYPTO_CB build when the
+    registered crypto callback device has taken the request but not yet
+    finished it. The caller must re-invoke with identical arguments until the
+    result is no longer WC_PENDING_E; HKDF has no WC_ASYNC_DEV, so this is a
+    poll and not a wc_AsyncWait(). A device also used for TLS 1.3 must
+    complete HKDF requests synchronously, because the TLS 1.3 key schedule
+    cannot resume a pending operation. wc_HKDF_ex() follows the same
+    contract and re-issues its extract step on every retry, so a device that
+    pends must serve a repeated identical request from its completed result.
+
     \param type hash type to use for the HKDF. Valid types are: WC_MD5, WC_SHA,
     WC_SHA256, WC_SHA384, WC_SHA512, WC_SHA3_224, WC_SHA3_256, WC_SHA3_384 or
     WC_SHA3_512
@@ -357,6 +367,16 @@ int wc_HKDF_Expand(
     \return HMAC_MIN_KEYLEN_E May be returned when using a FIPS implementation
     and the key length specified is shorter than the minimum acceptable FIPS
     standard
+
+    \return WC_PENDING_E May be returned in a WOLF_CRYPTO_CB build when the
+    registered crypto callback device has taken the request but not yet
+    finished it. The caller must re-invoke with identical arguments until the
+    result is no longer WC_PENDING_E; HKDF has no WC_ASYNC_DEV, so this is a
+    poll and not a wc_AsyncWait(). A device also used for TLS 1.3 must
+    complete HKDF requests synchronously, because the TLS 1.3 key schedule
+    cannot resume a pending operation. wc_HKDF_ex() follows the same
+    contract and re-issues its extract step on every retry, so a device that
+    pends must serve a repeated identical request from its completed result.
 
     \param type hash type to use for the HKDF. Valid types are: WC_MD5, WC_SHA,
     WC_SHA256, WC_SHA384, WC_SHA512, WC_SHA3_224, WC_SHA3_256, WC_SHA3_384 or
