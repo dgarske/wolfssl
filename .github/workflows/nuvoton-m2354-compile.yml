@@ -1,0 +1,96 @@
+name: "Nuvoton M2354 port"
+
+# Keeps the Nuvoton NuMicro M2354 crypto callback port compiling against the
+# real vendor BSP. The port has no autotools option and is not built by any
+# other job: an application compiles wolfcrypt/src/port/nuvoton/*.c into its own
+# project, the same way wolfcrypt/src/port/st/stm32.c is carried. Without this
+# guard a header rename in the BSP, or a refactor in aes.c, ecc.c or cryptocb.h,
+# would break the port silently until someone next built for the board.
+#
+# Nothing is faked here. arm-none-eabi-gcc is a plain apt package and the BSP is
+# a public GitHub repository, so both legs compile against the genuine Nuvoton
+# StdDriver headers at a pinned commit.
+#
+#   secure       WOLFSSL_NUVOTON_SECURE, and links the full example image so
+#                the footprint is checked as well
+#   trustzone    WOLFSSL_NUVOTON_NSC for the port plus -mcmse for the
+#                non-secure callable veneers; compile only, because a complete
+#                TrustZone application needs a partition layout that belongs to
+#                the user's project
+#
+# Functional correctness is validated on a NuMaker-M2354, not here; see the
+# Status section of wolfcrypt/src/port/nuvoton/README.md.
+
+# START OF COMMON SECTION
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+    paths:
+      - 'wolfcrypt/src/port/nuvoton/**'
+      - 'wolfssl/wolfcrypt/port/nuvoton/**'
+      - 'IDE/Nuvoton/**'
+      - '.github/workflows/nuvoton-m2354-compile.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ '**' ]
+    paths:
+      - 'wolfcrypt/src/**'
+      - 'wolfssl/wolfcrypt/**'
+      - 'IDE/Nuvoton/**'
+      - '.github/workflows/nuvoton-m2354-compile.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+# END OF COMMON SECTION
+
+env:
+  # Pinned so a BSP change cannot break a PR that did not touch the port. Bump
+  # it deliberately.
+  BSP_REF: 3d423be763edabe1d8b3f27dea363b69e787f8f9
+
+jobs:
+  compile:
+    name: ${{ matrix.leg }} (Cortex-M23)
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: secure
+            args: ""
+          - leg: trustzone
+            args: "--tz"
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout wolfSSL
+
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Checkout the Nuvoton M2354 BSP
+        run: |
+          set -e
+          # The full repository is around 256 MB and almost none of it is
+          # needed, so take one commit and only the driver tree.
+          git clone --filter=blob:none --no-checkout --sparse \
+            https://github.com/OpenNuvoton/M2354BSP "$GITHUB_WORKSPACE/M2354BSP"
+          cd "$GITHUB_WORKSPACE/M2354BSP"
+          git sparse-checkout set \
+            Library/StdDriver/inc Library/StdDriver/src \
+            Library/Device Library/CMSIS
+          git fetch --depth 1 origin "$BSP_REF"
+          git checkout "$BSP_REF"
+
+      - name: Build
+        run: |
+          ./IDE/Nuvoton/M2354/build.sh \
+            --bsp "$GITHUB_WORKSPACE/M2354BSP" ${{ matrix.args }}

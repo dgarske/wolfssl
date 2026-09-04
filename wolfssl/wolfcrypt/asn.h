@@ -97,6 +97,23 @@ that can be serialized and deserialized in a cross-platform way.
 #endif
 #include <wolfssl/wolfcrypt/asn_public.h>   /* public interface */
 
+/* wc_DataToHexString(): byte array to lowercase hex string. Built for the
+ * custom ECC curve parameter strings, and reused by hardware ports whose
+ * driver takes key material as a hex string. Anything that needs it defines
+ * WOLFSSL_ASN_HEX_STRING; the custom curve code turns it on for itself. */
+#if defined(WOLFSSL_ASN_TEMPLATE) && defined(HAVE_ECC) && \
+    defined(WOLFSSL_CUSTOM_CURVES)
+    #undef  WOLFSSL_ASN_HEX_STRING
+    #define WOLFSSL_ASN_HEX_STRING
+#endif
+
+#ifdef WOLFSSL_ASN_HEX_STRING
+/* Convert inSz bytes at input into a NUL terminated lowercase hex string.
+ * out needs room for inSz * 2 + 1 bytes. */
+WOLFSSL_LOCAL void wc_DataToHexString(const byte* input, word32 inSz,
+    char* out);
+#endif
+
 #if defined(NO_SHA) && defined(NO_SHA256)
     #define WC_SHA256_DIGEST_SIZE 32
 #endif

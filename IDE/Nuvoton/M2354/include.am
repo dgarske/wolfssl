@@ -1,0 +1,8 @@
+# vim:ft=automake
+# All paths should be given relative to the root
+
+EXTRA_DIST+= IDE/Nuvoton/M2354/README.md
+EXTRA_DIST+= IDE/Nuvoton/M2354/user_settings.h
+EXTRA_DIST+= IDE/Nuvoton/M2354/app.c
+EXTRA_DIST+= IDE/Nuvoton/M2354/build.sh
+EXTRA_DIST+= IDE/Nuvoton/M2354/secure/nuvoton_nsc.c

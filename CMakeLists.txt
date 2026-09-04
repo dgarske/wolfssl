@@ -4742,6 +4742,7 @@ set(HEADER_EXCLUDE
   "wolfssl/wolfcrypt/port/cypress"
   "wolfssl/wolfcrypt/port/Espressif"
   "wolfssl/wolfcrypt/port/iotsafe"
+  "wolfssl/wolfcrypt/port/nuvoton"
   "wolfssl/wolfcrypt/port/nxp"
   "wolfssl/wolfcrypt/port/pic"
   "wolfssl/wolfcrypt/port/Renesas"
