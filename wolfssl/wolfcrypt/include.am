@@ -102,6 +102,8 @@ noinst_HEADERS+= \
                          wolfssl/wolfcrypt/port/nxp/dcp_port.h \
                          wolfssl/wolfcrypt/port/nxp/casper_port.h \
                          wolfssl/wolfcrypt/port/nxp/hashcrypt_port.h \
+                         wolfssl/wolfcrypt/port/nxp/ele.h \
+                         wolfssl/wolfcrypt/port/nxp/ele_settings.h \
                          wolfssl/wolfcrypt/port/xilinx/xil-sha3.h \
                          wolfssl/wolfcrypt/port/xilinx/xil-versal-glue.h \
                          wolfssl/wolfcrypt/port/xilinx/xil-versal-trng.h \
