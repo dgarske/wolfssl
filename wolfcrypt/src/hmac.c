@@ -53,6 +53,15 @@
 
 #ifdef WOLF_CRYPTO_CB
     #include <wolfssl/wolfcrypt/cryptocb.h>
+
+    /* Whether an HMAC op is a crypto-callback candidate. WOLF_CRYPTO_CB_FIND
+     * lets the find callback map any id (INVALID_DEVID included) onto a device,
+     * so every HMAC qualifies; otherwise only one carrying a device id does. */
+    #ifdef WOLF_CRYPTO_CB_FIND
+        #define WC_HMAC_USE_CRYPTOCB(hmac)  1
+    #else
+        #define WC_HMAC_USE_CRYPTOCB(hmac)  ((hmac)->devId != INVALID_DEVID)
+    #endif
 #endif
 
 #ifdef NO_INLINE
@@ -1160,7 +1169,7 @@ int wc_HmacUpdate(Hmac* hmac, const byte* msg, word32 length)
     }
 
 #ifdef WOLF_CRYPTO_CB
-    if (hmac->devId != INVALID_DEVID) {
+    if (WC_HMAC_USE_CRYPTOCB(hmac)) {
         ret = wc_CryptoCb_Hmac(hmac, hmac->macType, msg, length, NULL);
         if (ret != WC_NO_ERR_TRACE(CRYPTOCB_UNAVAILABLE))
             return ret;
@@ -1296,7 +1305,7 @@ int wc_HmacFinal(Hmac* hmac, byte* hash)
     }
 
 #ifdef WOLF_CRYPTO_CB
-    if (hmac->devId != INVALID_DEVID) {
+    if (WC_HMAC_USE_CRYPTOCB(hmac)) {
         ret = wc_CryptoCb_Hmac(hmac, hmac->macType, NULL, 0, hash);
         if (ret != WC_NO_ERR_TRACE(CRYPTOCB_UNAVAILABLE))
             return ret;
@@ -1741,8 +1750,10 @@ void wc_HmacFree(Hmac* hmac)
 #endif
 
 #ifdef WOLF_CRYPTO_CB
-    /* handle cleanup case where final is not called */
-    if (hmac->devId != INVALID_DEVID && hmac->devCtx != NULL) {
+    /* handle cleanup case where final is not called. devCtx is only set by a
+     * device, so under WOLF_CRYPTO_CB_FIND (where INVALID_DEVID may be mapped
+     * to one) that alone identifies an op still owned by the device. */
+    if (WC_HMAC_USE_CRYPTOCB(hmac) && hmac->devCtx != NULL) {
         int  ret;
         byte finalHash[WC_HMAC_BLOCK_SIZE];
         ret = wc_CryptoCb_Hmac(hmac, hmac->macType, NULL, 0, finalHash);
