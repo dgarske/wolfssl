@@ -29733,7 +29733,6 @@ int RetrySendAlert(WOLFSSL* ssl)
     int ret = 0;
     int type;
     int severity;
-    WOLFSSL_ENTER("RetrySendAlert");
 
     if (ssl == NULL) {
         return BAD_FUNC_ARG;
@@ -29744,6 +29743,11 @@ int RetrySendAlert(WOLFSSL* ssl)
 
     if (severity == alert_none)
         return 0;
+
+    /* Traced here rather than on entry: this is called on every I/O and
+     * returns immediately when no alert is pending, so tracing on entry says
+     * nothing and drowns the log. */
+    WOLFSSL_ENTER("RetrySendAlert");
 
     ssl->pendingAlert.code = 0;
     ssl->pendingAlert.level = alert_none;

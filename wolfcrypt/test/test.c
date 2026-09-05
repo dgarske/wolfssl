@@ -81412,8 +81412,12 @@ static int myCryptoDevCb(int devIdArg, wc_CryptoInfo* info, void* ctx)
     if (info == NULL || myCtx == NULL)
         return BAD_FUNC_ARG;
 
-#ifdef DEBUG_WOLFSSL
-    WOLFSSL_MSG_EX("CryptoDevCb: Algo Type %d\n", info->algo_type);
+    /* One line per crypto-callback invocation - millions across the test
+     * suite.  DEBUG_CRYPTOCB is the existing switch for crypto-callback
+     * tracing (see wolfcrypt/src/cryptocb.c), so use it rather than riding on
+     * DEBUG_WOLFSSL.  wolfssl_log() appends its own newline. */
+#ifdef DEBUG_CRYPTOCB
+    WOLFSSL_MSG_EX("CryptoDevCb: Algo Type %d", info->algo_type);
 #endif
 
     if (info->algo_type == WC_ALGO_TYPE_RNG) {
