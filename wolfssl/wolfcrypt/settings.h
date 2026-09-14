@@ -360,10 +360,15 @@
  * below. __has_include must stay inside its own guarded block: preprocessors
  * without it would otherwise fail parsing the #elif expression (the header
  * name string is illegal in an integer constant expression), which the
- * defined() short-circuit does not prevent. */
+ * defined() short-circuit does not prevent.
+ * WOLFSSL_OPTIONS_H is deliberately not in the exclusion list below: it is
+ * the include guard of wolfssl/options.h, which the STM32Cube example
+ * header includes unconditionally, and the pack ships a blank options.h.
+ * Excluding it would suppress the MX2 configuration for every project
+ * built from the pack. */
 #if !defined(HAVE_CONFIG_H) && !defined(WOLFSSL_USER_SETTINGS) && \
-    !defined(WOLFSSL_OPTIONS_H) && !defined(WOLFSSL_NO_OPTIONS_H) && \
-    !defined(WOLFSSL_CUSTOM_CONFIG) && defined(__has_include)
+    !defined(WOLFSSL_NO_OPTIONS_H) && !defined(WOLFSSL_CUSTOM_CONFIG) && \
+    defined(__has_include)
     #if __has_include("mx_wolfSSL_conf.h")
         #define WOLFSSL_MX2_CONF_INCLUDE
     #endif
