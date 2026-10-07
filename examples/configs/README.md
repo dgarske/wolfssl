@@ -22,6 +22,7 @@ Example wolfSSL configuration file templates for use when autoconf is not availa
 * `user_settings_tinytls13.h`: Smallest TLS 1.3 only footprint profile. PSK + ECDHE floor (no X.509) with opt-in adders: `cert` (minimal X.509 verify), `server`, `mutualauth`, `staticmem`, `asm`, `p256`, `sha384`, `mldsa`, `rsaverify`. Pairs with `--enable-tinytls13`. See `examples/tls13/tls13_memio.c` for the self-contained in-memory handshake check used by `--disable-examples` builds.
 * `user_settings_dtls13.h`: DTLS 1.3 for IoT and embedded. Includes connection ID support and smaller MTU options.
 * `user_settings_pq.h`: Post-quantum TLS with ML-KEM (Kyber) key exchange and ML-DSA (Dilithium) certificates.
+* `user_settings_mldsa_m0.h`: ML-DSA (FIPS 204) on a small Cortex-M with no TLS and no hardware crypto. Defaults to verify only at the smallest RAM, the secure-boot case, with `#if` blocks for the faster verify, an allocator-free verify, and a build that also generates keys and signs. See comment at top for measured Cortex-M0+ figures.
 * `user_settings_openssl_compat.h`: OpenSSL compatibility layer for drop-in replacement. Enables OPENSSL_ALL and related APIs.
 * `user_settings_baremetal.h`: Bare metal configuration. No filesystem, static memory only, minimal footprint.
 * `user_settings_rsa_only.h`: RSA-only configuration (no ECC). For legacy systems requiring RSA cipher suites.

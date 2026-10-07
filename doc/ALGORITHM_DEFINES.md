@@ -481,6 +481,11 @@ Operations and size:
 | `WOLFSSL_MLDSA_NO_MAKE_KEY` / `_NO_SIGN` / `_NO_VERIFY` | Drop an operation |
 | `WOLFSSL_MLDSA_VERIFY_ONLY` | Verify only — the firmware-check case |
 | `WOLFSSL_MLDSA_VERIFY_SMALL_MEM` | Stream the verify instead of expanding the key at once |
+| `WOLFSSL_MLDSA_VERIFY_SMALLEST_MEM` | Also stream vector z a polynomial at a time, for the smallest verify heap. Implies `WOLFSSL_MLDSA_VERIFY_SMALL_MEM`. Costs roughly a third of the verify time at ML-DSA-44 and half at ML-DSA-87, as z is decoded and transformed once per row of the matrix |
+| `WOLFSSL_MLDSA_VERIFY_NO_MALLOC` | Pin the small-memory verify buffers inside `wc_MlDsaKey` rather than allocating them, so verification allocates nothing. Adds several KB to `sizeof(wc_MlDsaKey)` for the life of the key, leaving total RAM about the same -- this is for a build with no allocator, not a way to save memory. `WOLFSSL_NO_MALLOC` selects it along with the small-memory verify; `WOLFSSL_MLDSA_VERIFY_ALLOW_MALLOC` opts back out |
+| `WOLFSSL_MLDSA_MAKE_KEY_SMALL_MEM` | Generate a key without holding the whole matrix A, and encode t a polynomial at a time |
+| `WOLFSSL_MLDSA_SIGN_SMALL_MEM` | Walk matrix A a column at a time rather than expanding it, with the mask vector resident |
+| `WOLFSSL_MLDSA_SIGN_SMALLEST_MEM` | Hold one polynomial of the mask instead of the whole vector and regenerate it for z, with the two derivations bound by a checksum. About a third less heap than `WOLFSSL_MLDSA_SIGN_SMALL_MEM` and a little slower; implies it, and cannot be combined with the `PRECALC` options |
 | `WOLFSSL_MLDSA_VERIFY_PRECOMP_A` | Allow a host-expanded matrix A to be attached with `wc_MlDsaKey_SetPrecompA()`, so verify skips the SHAKE128 expansion. Needs a verification key fixed at build time; works with both the default and small-memory verifiers. The stored matrix must be integrity-protected exactly as the public key is |
 | `WOLFSSL_MLKEM_SMALL`, `WOLFSSL_MLKEM_NO_LARGE_CODE` | Loop rather than unroll |
 | `WOLFSSL_MLDSA_SMALL`, `WOLFSSL_MLDSA_NO_LARGE_CODE` | As above for ML-DSA |
@@ -619,7 +624,7 @@ sign; a sensor that only encrypts telemetry does not decrypt.
 | --- | --- |
 | Verify signatures only (ECC) | `NO_ECC_SIGN`, `NO_ECC_DHE`, `NO_ECC_KEY_EXPORT` |
 | Verify signatures only (RSA) | `WOLFSSL_RSA_VERIFY_ONLY`, `WOLFSSL_RSA_PUBLIC_ONLY` |
-| Verify signatures only (ML-DSA) | `WOLFSSL_MLDSA_VERIFY_ONLY`, `WOLFSSL_MLDSA_VERIFY_SMALL_MEM` |
+| Verify signatures only (ML-DSA) | `WOLFSSL_MLDSA_VERIFY_ONLY`, `WOLFSSL_MLDSA_VERIFY_SMALL_MEM`, or `WOLFSSL_MLDSA_VERIFY_SMALLEST_MEM` for the least heap |
 | Encrypt only | `NO_AES_DECRYPT` |
 | No key generation | leave `WOLFSSL_KEY_GEN` undefined; `WOLFSSL_MLKEM_NO_MAKE_KEY`, `WOLFSSL_MLDSA_NO_MAKE_KEY` |
 
