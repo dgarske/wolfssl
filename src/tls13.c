@@ -6998,16 +6998,6 @@ static int DoPreSharedKeys(WOLFSSL* ssl, const byte* input, word32 inputSz,
     /* Look through all client's pre-shared keys for a match. */
     for (current = (PreSharedKey*)ext->data; current != NULL;
             current = current->next) {
-    #ifndef NO_PSK
-        if (current->identityLen > MAX_PSK_ID_LEN) {
-            ret = BUFFER_ERROR;
-            goto cleanup;
-        }
-        XMEMCPY(ssl->arrays->client_identity, current->identity,
-                current->identityLen);
-        ssl->arrays->client_identity[current->identityLen] = '\0';
-    #endif
-
     #ifdef HAVE_SESSION_TICKET
         /* Decode the identity. */
         switch (current->decryptRet) {
@@ -7208,7 +7198,19 @@ static int DoPreSharedKeys(WOLFSSL* ssl, const byte* input, word32 inputSz,
         else
     #endif /* HAVE_SESSION_TICKET */
     #ifndef NO_PSK
-        if (FindPsk(ssl, current, suite, &ret)) {
+        {
+            /* Longer than any external identity: a ticket that was not
+             * accepted above. */
+            if (current->identityLen > MAX_PSK_ID_LEN) {
+                continue;
+            }
+            XMEMCPY(ssl->arrays->client_identity, current->identity,
+                    current->identityLen);
+            ssl->arrays->client_identity[current->identityLen] = '\0';
+
+            if (!FindPsk(ssl, current, suite, &ret)) {
+                continue;
+            }
             if (ret != 0)
                 goto cleanup;
 
@@ -7229,11 +7231,11 @@ static int DoPreSharedKeys(WOLFSSL* ssl, const byte* input, word32 inputSz,
             if (ret != 0)
                 goto cleanup;
         }
-        else
-    #endif
+    #else
         {
             continue;
         }
+    #endif
 
         ssl->options.sendVerify = 0;
 
@@ -12653,6 +12655,8 @@ static int decodeRsaKey(WOLFSSL* ssl)
     int keyRet;
     word32 tmpIdx = 0;
 
+    if (GetPeerCert(ssl) == NULL)
+        return PEER_KEY_ERROR;
     if (ssl->peerRsaKeyPresent)
         return INVALID_PARAMETER;
 
@@ -12661,9 +12665,9 @@ static int decodeRsaKey(WOLFSSL* ssl)
         return PEER_KEY_ERROR;
 
     ssl->peerRsaKeyPresent = 1;
-    keyRet = wc_RsaPublicKeyDecode(ssl->peerCert.sapkiDer, &tmpIdx,
+    keyRet = wc_RsaPublicKeyDecode(GetPeerCert(ssl)->sapkiDer, &tmpIdx,
                                    ssl->peerRsaKey,
-                                   ssl->peerCert.sapkiLen);
+                                   GetPeerCert(ssl)->sapkiLen);
     if (keyRet != 0)
         return PEER_KEY_ERROR;
 
@@ -12679,6 +12683,8 @@ static int decodeEccKey(WOLFSSL* ssl)
     int keyRet;
     word32 tmpIdx = 0;
 
+    if (GetPeerCert(ssl) == NULL)
+        return PEER_KEY_ERROR;
     if (ssl->peerEccDsaKeyPresent)
         return INVALID_PARAMETER;
 
@@ -12687,9 +12693,9 @@ static int decodeEccKey(WOLFSSL* ssl)
         return PEER_KEY_ERROR;
 
     ssl->peerEccDsaKeyPresent = 1;
-    keyRet = wc_EccPublicKeyDecode(ssl->peerCert.sapkiDer, &tmpIdx,
+    keyRet = wc_EccPublicKeyDecode(GetPeerCert(ssl)->sapkiDer, &tmpIdx,
                                    ssl->peerEccDsaKey,
-                                   ssl->peerCert.sapkiLen);
+                                   GetPeerCert(ssl)->sapkiLen);
     if (keyRet != 0)
         return PEER_KEY_ERROR;
 
@@ -12705,6 +12711,8 @@ static int decodeMlDsaKey(WOLFSSL* ssl, int level)
     int keyRet;
     word32 tmpIdx = 0;
 
+    if (GetPeerCert(ssl) == NULL)
+        return PEER_KEY_ERROR;
     if (ssl->peerMlDsaKeyPresent)
         return INVALID_PARAMETER;
 
@@ -12719,8 +12727,8 @@ static int decodeMlDsaKey(WOLFSSL* ssl, int level)
         return PEER_KEY_ERROR;
 
     keyRet = wc_MlDsaKey_PublicKeyDecode(ssl->peerMlDsaKey,
-                                         ssl->peerCert.sapkiDer,
-                                         ssl->peerCert.sapkiLen, &tmpIdx);
+                                         GetPeerCert(ssl)->sapkiDer,
+                                         GetPeerCert(ssl)->sapkiLen, &tmpIdx);
     if (keyRet != 0)
         return PEER_KEY_ERROR;
 
@@ -12736,6 +12744,8 @@ static int decodeFalconKey(WOLFSSL* ssl, int level)
     int keyRet;
     word32 tmpIdx = 0;
 
+    if (GetPeerCert(ssl) == NULL)
+        return PEER_KEY_ERROR;
     if (ssl->peerFalconKeyPresent)
         return INVALID_PARAMETER;
 
@@ -12748,9 +12758,9 @@ static int decodeFalconKey(WOLFSSL* ssl, int level)
     if (keyRet != 0)
         return PEER_KEY_ERROR;
 
-    keyRet = wc_Falcon_PublicKeyDecode(ssl->peerCert.sapkiDer, &tmpIdx,
+    keyRet = wc_Falcon_PublicKeyDecode(GetPeerCert(ssl)->sapkiDer, &tmpIdx,
                                        ssl->peerFalconKey,
-                                       ssl->peerCert.sapkiLen);
+                                       GetPeerCert(ssl)->sapkiLen);
     if (keyRet != 0)
         return PEER_KEY_ERROR;
 

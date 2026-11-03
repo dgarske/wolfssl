@@ -2240,7 +2240,7 @@ int test_TLSX_SupportedGroups_parse(void)
         TLSX_FreeAll(extensions, NULL);
         extensions = NULL;
 
-#ifdef WOLFSSL_TEST_STATIC_BUILD
+#if defined(WOLFSSL_TEST_STATIC_BUILD) && !defined(WOLFSSL_DEBUG_MEMORY)
         /* First entry is a real, supported curve, but its allocation is
          * forced to fail: a distinct error (neither WOLFSSL_SUCCESS nor
          * BAD_FUNC_ARG) that aborts the scan immediately. */
@@ -2783,7 +2783,7 @@ int test_TLSX_KeyShare_gen(void)
             kse = NULL;
         }
 
-#ifdef WOLFSSL_TEST_STATIC_BUILD
+#if defined(WOLFSSL_TEST_STATIC_BUILD) && !defined(WOLFSSL_DEBUG_MEMORY)
         /* "ret == 0" itself: force some allocation inside the shared DH
          * key setup (the params/key object itself, ahead of either
          * buffer's own allocation) to fail, so ret is non-zero by the

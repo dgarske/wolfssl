@@ -6866,8 +6866,18 @@ static WOLFSSL_EVP_PKEY* X509DecodePubKey(WOLFSSL_X509* x509)
                 key->type = WC_EVP_PKEY_ED448;
             }
         #endif
-            else {
+            else if (x509->pubKeyOID == ECDSAk) {
                 key->type = WC_EVP_PKEY_EC;
+            }
+            else {
+            #ifdef OPENSSL_ALL
+                const unsigned char* der = x509->pubKey.buffer;
+
+                wolfSSL_EVP_PKEY_free(key);
+                return wolfSSL_d2i_PUBKEY(NULL, &der, x509->pubKey.length);
+            #else
+                key->type = WC_EVP_PKEY_EC;
+            #endif
             }
             key->save_type = 0;
             key->pkey.ptr = (char*)XMALLOC(
@@ -17556,6 +17566,63 @@ int wolfSSL_X509_NAME_copy(const WOLFSSL_X509_NAME* from, WOLFSSL_X509_NAME* to)
         }
     }
     to->entrySz = from->entrySz;
+    return WOLFSSL_SUCCESS;
+}
+
+/* Moves the contents of from into to, which must be initialized and empty.
+ * from is left empty but valid. */
+int wolfssl_x509_name_move(WOLFSSL_X509_NAME* to, WOLFSSL_X509_NAME* from)
+{
+    int i;
+
+#ifndef WOLFSSL_NO_CA_NAMES
+    if (from->rawLen > 0) {
+        XMEMCPY(to->raw, from->raw, (size_t)from->rawLen);
+        to->rawLen = from->rawLen;
+        from->rawLen = 0;
+    }
+#ifdef OPENSSL_ALL
+    /* The entry stack points at from's entry array. */
+    wolfSSL_sk_X509_NAME_ENTRY_free(from->entries);
+    from->entries = NULL;
+#endif
+#endif
+
+    if (from->dynamicName) {
+        to->name = from->name;
+        to->dynamicName = 1;
+        from->name = from->staticName;
+        from->dynamicName = 0;
+    }
+    else {
+        XMEMCPY(to->name, from->name, (size_t)from->sz);
+    }
+    to->sz = from->sz;
+    from->name[0] = '\0';
+    from->sz = 0;
+
+    for (i = 0; i < MAX_NAME_ENTRIES; i++) {
+        to->entry[i] = from->entry[i];
+        XMEMSET(&from->entry[i], 0, sizeof(from->entry[i]));
+    }
+    to->entrySz = from->entrySz;
+    from->entrySz = 0;
+
+#ifdef OPENSSL_ALL
+    for (i = 0; i < MAX_NAME_ENTRIES; i++) {
+        if (to->entry[i].set) {
+            if (to->entries == NULL) {
+                to->entries = wolfSSL_sk_X509_NAME_new(NULL);
+            }
+            if ((to->entries == NULL) ||
+                    (wolfSSL_sk_X509_NAME_ENTRY_push(to->entries,
+                        &to->entry[i]) <= 0)) {
+                return WOLFSSL_FAILURE;
+            }
+        }
+    }
+#endif
+
     return WOLFSSL_SUCCESS;
 }
 

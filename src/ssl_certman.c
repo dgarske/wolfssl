@@ -3249,6 +3249,9 @@ int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify)
     #endif
 
     InitDecodedCert(cert, der->buffer, der->length, cm->heap);
+#ifdef WOLFSSL_X509_NAME_AVAILABLE
+    cert->noX509Name = 1;
+#endif
 
 #ifdef WC_ASN_UNKNOWN_EXT_CB
     if (cm->unknownExtCallback32 != NULL) {

@@ -5191,6 +5191,18 @@ blinding by defining WC_BLINDING_NO_RNG_ACKNOWLEDGE_WEAKNESS."
     #define KEEP_PEER_CERT
 #endif
 
+/* Allocate the peer certificate when it arrives instead of embedding a
+ * WOLFSSL_X509 in every WOLFSSL. Default when large objects already go on
+ * the heap. */
+#if defined(KEEP_PEER_CERT) && defined(WOLFSSL_SMALL_STACK) && \
+    !defined(WOLFSSL_NO_MALLOC) && !defined(NO_WOLFSSL_DYNAMIC_PEER_CERT)
+    #undef  WOLFSSL_DYNAMIC_PEER_CERT
+    #define WOLFSSL_DYNAMIC_PEER_CERT
+#endif
+#if defined(WOLFSSL_DYNAMIC_PEER_CERT) && !defined(KEEP_PEER_CERT)
+    #undef WOLFSSL_DYNAMIC_PEER_CERT
+#endif
+
 /* Always copy certificate(s) from SSL CTX to each SSL object on creation,
  * if this is not defined then each SSL object shares a pointer to the
  * original certificate buffer owned by the SSL CTX. */

@@ -2267,10 +2267,10 @@ WOLFSSL_TS_RESP* wolfSSL_TS_RESP_create_response(WOLFSSL_TS_RESP_CTX* ctx,
     int n;
     int rngInit = 0;
     word32 reqSz = 0;
-    WC_RNG rng;
-    TspRequest req;
-    TspTstInfo tst;
-    TspResponse resp;
+    WC_DECLARE_VAR(rng, WC_RNG, 1, NULL);
+    WC_DECLARE_VAR(req, TspRequest, 1, NULL);
+    WC_DECLARE_VAR(tst, TspTstInfo, 1, NULL);
+    WC_DECLARE_VAR(resp, TspResponse, 1, NULL);
     WOLFSSL_TS_RESP* tsResp = NULL;
     WOLFSSL_ASN1_INTEGER* serialInt = NULL;
     const unsigned char* serial = NULL;
@@ -2299,10 +2299,18 @@ WOLFSSL_TS_RESP* wolfSSL_TS_RESP_create_response(WOLFSSL_TS_RESP_CTX* ctx,
         return NULL;
     }
 
+    WC_ALLOC_VAR_EX(rng, WC_RNG, 1, NULL, DYNAMIC_TYPE_TMP_BUFFER,
+        goto cleanup);
+    WC_ALLOC_VAR_EX(req, TspRequest, 1, NULL, DYNAMIC_TYPE_TMP_BUFFER,
+        goto cleanup);
+    WC_ALLOC_VAR_EX(tst, TspTstInfo, 1, NULL, DYNAMIC_TYPE_TMP_BUFFER,
+        goto cleanup);
+    WC_ALLOC_VAR_EX(resp, TspResponse, 1, NULL, DYNAMIC_TYPE_TMP_BUFFER,
+        goto cleanup);
 #ifdef WOLFSSL_SMALL_STACK
     reqDer = (byte*)XMALLOC(TSP_RESP_REQ_DER_SZ, NULL, DYNAMIC_TYPE_TMP_BUFFER);
     if (reqDer == NULL)
-        return NULL;
+        goto cleanup;
 #endif
 
     /* Read the DER request from the BIO. */
@@ -2314,8 +2322,8 @@ WOLFSSL_TS_RESP* wolfSSL_TS_RESP_create_response(WOLFSSL_TS_RESP_CTX* ctx,
     reqSz = (word32)n;
 
     /* Decode the request and start a TSTInfo. */
-    if ((wc_TspRequest_Decode(&req, reqDer, reqSz) != 0) ||
-            (wc_TspTstInfo_Init(&tst) != 0)) {
+    if ((wc_TspRequest_Decode(req, reqDer, reqSz) != 0) ||
+            (wc_TspTstInfo_Init(tst) != 0)) {
         goto cleanup;
     }
 
@@ -2339,63 +2347,63 @@ WOLFSSL_TS_RESP* wolfSSL_TS_RESP_create_response(WOLFSSL_TS_RESP_CTX* ctx,
 
         if (ctx->timeCb(ctx, ctx->timeCbData, &sec, &usec) != 1)
             goto cleanup;
-        if (wc_TspTstInfo_SetGenTimeAsTime(&tst, (time_t)sec, genTime,
+        if (wc_TspTstInfo_SetGenTimeAsTime(tst, (time_t)sec, genTime,
                 (word32)sizeof(genTime)) != 0) {
             goto cleanup;
         }
         genTimePtr = genTime;
-        genTimeSz = tst.genTimeSz;
+        genTimeSz = tst->genTimeSz;
     }
 #endif
 
     /* Set the TSTInfo from the request and the configured values. The genTime
      * is NULL when no time callback - the encoder uses the current time. */
-    if (wc_TspTstInfo_SetFromRequest(&tst, &req, ctx->policy, ctx->policySz,
+    if (wc_TspTstInfo_SetFromRequest(tst, req, ctx->policy, ctx->policySz,
             serial, serialSz, genTimePtr, genTimeSz) != 0) {
         goto cleanup;
     }
     /* Apply accuracy and ordering from the context. */
     if ((ctx->accSecs != 0) || (ctx->accMillis != 0) ||
             (ctx->accMicros != 0)) {
-        (void)wc_TspTstInfo_SetAccuracy(&tst, (word32)ctx->accSecs,
+        (void)wc_TspTstInfo_SetAccuracy(tst, (word32)ctx->accSecs,
             (word16)ctx->accMillis, (word16)ctx->accMicros);
     }
     if (ctx->flags & WOLFSSL_TS_ORDERING) {
-        tst.ordering = 1;
+        tst->ordering = 1;
     }
 
     /* Sign the TSTInfo into a token - includes the signer's certificate. */
-    if (wc_InitRng(&rng) != 0)
+    if (wc_InitRng(rng) != 0)
         goto cleanup;
     rngInit = 1;
     tokenSz = ctx->certSz + 2048;
     token = (byte*)XMALLOC(tokenSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
     if (token == NULL)
         goto cleanup;
-    if (wc_TspTstInfo_Sign(&tst, ctx->certDer, ctx->certSz, ctx->keyDer,
-            ctx->keySz, ctx->keyType, ctx->hashType, &rng, token,
+    if (wc_TspTstInfo_Sign(tst, ctx->certDer, ctx->certSz, ctx->keyDer,
+            ctx->keySz, ctx->keyType, ctx->hashType, rng, token,
             &tokenSz) != 0) {
         goto cleanup;
     }
 
     /* Wrap the token in a granted response, encode it and load it into a
      * TS_RESP so the getters work. */
-    if (wc_TspResponse_Init(&resp) != 0)
+    if (wc_TspResponse_Init(resp) != 0)
         goto cleanup;
-    resp.status = WC_TSP_PKISTATUS_GRANTED;
-    resp.token = token;
-    resp.tokenSz = tokenSz;
+    resp->status = WC_TSP_PKISTATUS_GRANTED;
+    resp->token = token;
+    resp->tokenSz = tokenSz;
     {
         byte* respDer;
         word32 respDerSz = 0;
 
         /* Get the encoded length, allocate and encode. */
-        if (wc_TspResponse_Encode(&resp, NULL, &respDerSz) != 0)
+        if (wc_TspResponse_Encode(resp, NULL, &respDerSz) != 0)
             goto cleanup;
         respDer = (byte*)XMALLOC(respDerSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
         if (respDer == NULL)
             goto cleanup;
-        if (wc_TspResponse_Encode(&resp, respDer, &respDerSz) == 0) {
+        if (wc_TspResponse_Encode(resp, respDer, &respDerSz) == 0) {
             p = respDer;
             tsResp = wolfSSL_d2i_TS_RESP(NULL, &p, (long)respDerSz);
             if (tsResp != NULL)
@@ -2410,11 +2418,15 @@ cleanup:
         tsResp = NULL;
     }
     if (rngInit)
-        wc_FreeRng(&rng);
+        wc_FreeRng(rng);
     XFREE(token, NULL, DYNAMIC_TYPE_TMP_BUFFER);
 #ifdef WOLFSSL_SMALL_STACK
     XFREE(reqDer, NULL, DYNAMIC_TYPE_TMP_BUFFER);
 #endif
+    WC_FREE_VAR_EX(resp, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    WC_FREE_VAR_EX(tst, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    WC_FREE_VAR_EX(req, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    WC_FREE_VAR_EX(rng, NULL, DYNAMIC_TYPE_TMP_BUFFER);
     wolfSSL_ASN1_INTEGER_free(serialInt);
     WOLFSSL_LEAVE("wolfSSL_TS_RESP_create_response", ok);
     return tsResp;

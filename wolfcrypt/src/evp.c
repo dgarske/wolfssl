@@ -3843,6 +3843,27 @@ static int ECC_populate_EVP_PKEY(WOLFSSL_EVP_PKEY* pkey, WOLFSSL_EC_KEY *key);
 static int PopulateRSAEvpPkeyDer(WOLFSSL_EVP_PKEY *pkey);
 #endif
 
+/* The DRBG in the EVP_PKEY is instantiated the first time a key operation
+ * needs it. */
+static WC_RNG* wolfssl_evp_pkey_rng(WOLFSSL_EVP_PKEY* pkey)
+{
+    int ret;
+
+    if (!pkey->rngInit) {
+    #ifndef HAVE_FIPS
+        ret = wc_InitRng_ex(&pkey->rng, pkey->heap, INVALID_DEVID);
+    #else
+        ret = wc_InitRng(&pkey->rng);
+    #endif
+        if (ret != 0) {
+            WOLFSSL_MSG("Issue initializing RNG");
+            return NULL;
+        }
+        pkey->rngInit = 1;
+    }
+    return &pkey->rng;
+}
+
 int wolfSSL_EVP_PKEY_keygen(WOLFSSL_EVP_PKEY_CTX *ctx,
   WOLFSSL_EVP_PKEY **ppkey)
 {
@@ -3970,13 +3991,13 @@ int wolfSSL_EVP_PKEY_keygen(WOLFSSL_EVP_PKEY_CTX *ctx,
                 }
             #ifdef WOLFSSL_CURVE25519_BLINDING
                 /* Use the EVP_PKEY's RNG for scalar blinding on derive. */
-                (void)wc_curve25519_set_rng(pkey->curve25519, &pkey->rng);
+                (void)wc_curve25519_set_rng(pkey->curve25519,
+                    wolfssl_evp_pkey_rng(pkey));
             #endif
                 pkey->ownCurve25519 = 1;
             }
-            /* Reuse the RNG already initialized on the EVP_PKEY. */
-            if (wc_curve25519_make_key(&pkey->rng, CURVE25519_KEYSIZE,
-                    pkey->curve25519) == 0) {
+            if (wc_curve25519_make_key(wolfssl_evp_pkey_rng(pkey),
+                    CURVE25519_KEYSIZE, pkey->curve25519) == 0) {
                 ret = WOLFSSL_SUCCESS;
             }
             break;
@@ -3998,9 +4019,8 @@ int wolfSSL_EVP_PKEY_keygen(WOLFSSL_EVP_PKEY_CTX *ctx,
                 }
                 pkey->ownCurve448 = 1;
             }
-            /* Reuse the RNG already initialized on the EVP_PKEY. */
-            if (wc_curve448_make_key(&pkey->rng, CURVE448_KEY_SIZE,
-                    pkey->curve448) == 0) {
+            if (wc_curve448_make_key(wolfssl_evp_pkey_rng(pkey),
+                    CURVE448_KEY_SIZE, pkey->curve448) == 0) {
                 ret = WOLFSSL_SUCCESS;
             }
             break;
@@ -4020,9 +4040,8 @@ int wolfSSL_EVP_PKEY_keygen(WOLFSSL_EVP_PKEY_CTX *ctx,
                 pkey->ownEd25519 = 1;
                 newEd25519 = 1;
             }
-            /* Reuse the RNG already initialized on the EVP_PKEY. */
-            if (wc_ed25519_make_key(&pkey->rng, ED25519_KEY_SIZE,
-                    pkey->ed25519) == 0) {
+            if (wc_ed25519_make_key(wolfssl_evp_pkey_rng(pkey),
+                    ED25519_KEY_SIZE, pkey->ed25519) == 0) {
                 /* Cache the PKCS#8 PrivateKeyInfo DER so the EVP/SSL paths
                  * (use_PrivateKey, EVP_PKEY2PKCS8) can load and serialize the
                  * key, mirroring the state the decode path produces. */
@@ -9645,7 +9664,8 @@ int wolfSSL_EVP_PKEY_set1_RSA(WOLFSSL_EVP_PKEY *pkey, WOLFSSL_RSA *key)
 
 #ifdef WC_RSA_BLINDING
     if (key->ownRng == 0) {
-        if (wc_RsaSetRNG((RsaKey*)pkey->rsa->internal, &pkey->rng) != 0) {
+        if (wc_RsaSetRNG((RsaKey*)pkey->rsa->internal,
+                wolfssl_evp_pkey_rng(pkey)) != 0) {
             WOLFSSL_MSG("Error setting RSA rng");
             return WOLFSSL_FAILURE;
         }
@@ -12568,18 +12588,6 @@ WOLFSSL_EVP_PKEY* wolfSSL_EVP_PKEY_new_ex(void* heap)
         pkey->heap = heap;
         pkey->type = WOLFSSL_EVP_PKEY_DEFAULT;
 
-#ifndef HAVE_FIPS
-        ret = wc_InitRng_ex(&pkey->rng, heap, INVALID_DEVID);
-#else
-        ret = wc_InitRng(&pkey->rng);
-#endif
-        if (ret != 0){
-            /* Free directly since mutex for ref count not set yet */
-            XFREE(pkey, heap, DYNAMIC_TYPE_PUBLIC_KEY);
-            WOLFSSL_MSG("Issue initializing RNG");
-            return NULL;
-        }
-
         wolfSSL_RefInit(&pkey->ref, &ret);
     #ifdef WOLFSSL_REFCNT_ERROR_RETURN
         if (ret != 0){
@@ -12614,7 +12622,9 @@ void wolfSSL_EVP_PKEY_free(WOLFSSL_EVP_PKEY* key)
     #endif
 
         if (doFree) {
-            wc_FreeRng(&key->rng);
+            if (key->rngInit) {
+                wc_FreeRng(&key->rng);
+            }
 
             if (key->pkey.ptr != NULL) {
                 /* Holds the private key DER for a private pkey. */

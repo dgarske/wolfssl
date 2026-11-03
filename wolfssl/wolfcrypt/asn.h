@@ -2252,6 +2252,7 @@ struct DecodedCert {
     WC_BITFIELD extNetscapeCertTypeSet:1;  /* Netscape certificate type seen */
 #endif
     WC_BITFIELD selfSigned:1;          /* Own key verified the signature */
+    WC_BITFIELD noX509Name:1;          /* Skip issuerName/subjectName */
 #if defined(WOLFSSL_SEP) || defined(WOLFSSL_CERT_EXT)
     WC_BITFIELD extCertPolicySet:1;
 #endif

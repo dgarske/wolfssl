@@ -3536,10 +3536,17 @@ fi
 
 # OPENSSL Extra Compatibility
 AC_ARG_ENABLE([opensslextra],
-    [AS_HELP_STRING([--enable-opensslextra],[Enable extra OpenSSL API, size+ (default: disabled). Skip compat header install using "noinstall"])],
+    [AS_HELP_STRING([--enable-opensslextra],[Enable extra OpenSSL API, size+ (default: disabled). Skip compat header install using "noinstall". Trim the fixed-size buffers for small RAM using "lowmem"])],
     [ ENABLED_OPENSSLEXTRA=$enableval ],
     [ ENABLED_OPENSSLEXTRA=no ]
     )
+
+ENABLED_OPENSSLEXTRA_LOWMEM=no
+if test "$ENABLED_OPENSSLEXTRA" = "lowmem"
+then
+    ENABLED_OPENSSLEXTRA="yes"
+    ENABLED_OPENSSLEXTRA_LOWMEM="yes"
+fi
 
 if test "$ENABLED_QUIC" = "yes"
 then
@@ -13831,6 +13838,15 @@ fi
 if test "$ENABLED_OPENSSLEXTRA" = "yes"
 then
     AM_CFLAGS="$AM_CFLAGS -DOPENSSL_EXTRA"
+fi
+
+if test "$ENABLED_OPENSSLEXTRA_LOWMEM" = "yes"
+then
+    # Same knobs as examples/configs/user_settings_openssl_compat_lowmem.h.
+    AM_CFLAGS="$AM_CFLAGS -DWOLFSSL_SMALL_STACK -DWOLFSSL_DYNAMIC_PEER_CERT"
+    AM_CFLAGS="$AM_CFLAGS -DNO_CERT_IN_TICKET -DMAX_PSK_ID_LEN=128"
+    AM_CFLAGS="$AM_CFLAGS -DWOLFSSL_STATIC_TICKET_LEN=128 -DSMALL_SESSION_CACHE"
+    AM_CFLAGS="$AM_CFLAGS -DWC_ASN_NAME_MAX=256 -DWC_MAX_NAME_ENTRIES=8"
 fi
 
 if test "$ENABLED_OPENSSLEXTRA" = "x509small"

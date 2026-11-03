@@ -1,0 +1,103 @@
+name: OpenSSL compat memory budget
+
+# START OF COMMON SECTION
+on:
+  push:
+    branches: [ 'release/**' ]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ '*' ]
+  # Weekday-morning cron (10:00 UTC) seeds the master-scoped ccache that PR runs
+  # restore: re-runs --build-only (compile only, no tests) on the
+  # default branch. PR runs are read-only (see ccache-setup).
+  schedule:
+    - cron: '45 10 * * 1-5'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+# END OF COMMON SECTION
+
+jobs:
+  build_library:
+    name: build library
+    if: ${{ (github.repository_owner == 'wolfssl') && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        name: Checkout wolfSSL
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-apt-deps
+        with:
+          packages: autoconf automake libtool build-essential
+          ghcr-debs-tag: ubuntu-24.04-minimal
+
+      - name: Set up ccache
+        uses: ./.github/actions/ccache-setup
+        with:
+          workflow-id: opensslmembudget
+          read-only: ${{ github.event_name == 'pull_request' }}
+          max-size: 150M
+
+      # Each config builds the OpenSSL compatibility layer with the stack and
+      # heap trackers on, then runs test_tls_resource_usage, which prints the
+      # per-stage high-water marks of a TLS 1.2 and a TLS 1.3 connection over
+      # in-memory I/O and fails a stage above the WOLFSSL_TEST_MAX_TLS_*
+      # limits. The limits are the sum of both sides of the connection, set
+      # about 10% above the measured stage maximum. A user_settings build
+      # ignores the configure tracker options, so that entry passes the
+      # tracker macros itself.
+      - name: Build all configs (parallel, out-of-tree)
+        run: |
+          cat > "$RUNNER_TEMP/opensslmembudget-configs.json" <<'EOF2'
+          {"base": {"minutes": 2, "check": false,
+            "run": [["./tests/unit.test", "-test_tls_resource_usage"]],
+            "configure": ["--enable-stacksize=verbose",
+             "--enable-trackmemory=verbose", "--disable-benchmark",
+             "--disable-crypttests"]},
+           "configs": [
+          {"name": "opensslextra-smallstack",
+           "configure": ["--enable-opensslextra", "--enable-smallstack",
+            "--enable-smallstackcache",
+            "CPPFLAGS=-DWOLFSSL_TEST_MAX_TLS_STACK_BYTES=8192 -DWOLFSSL_TEST_MAX_TLS_HEAP_BYTES=61440"]},
+          {"name": "opensslall-smallstack",
+           "configure": ["--enable-opensslall", "--enable-smallstack",
+            "--enable-smallstackcache",
+            "CPPFLAGS=-DWOLFSSL_TEST_MAX_TLS_STACK_BYTES=8192 -DWOLFSSL_TEST_MAX_TLS_HEAP_BYTES=69632"]},
+          {"name": "opensslall",
+           "comment": "Embedded peer certificate path (no smallstack).",
+           "configure": ["--enable-opensslall",
+            "CPPFLAGS=-DWOLFSSL_TEST_MAX_TLS_STACK_BYTES=16384 -DWOLFSSL_TEST_MAX_TLS_HEAP_BYTES=65536"]},
+          {"name": "opensslextra-lowmem",
+           "configure": ["--enable-opensslextra=lowmem",
+            "CPPFLAGS=-DWOLFSSL_TEST_MAX_TLS_STACK_BYTES=8192 -DWOLFSSL_TEST_MAX_TLS_HEAP_BYTES=61440"]},
+          {"name": "user-settings-openssl-compat-lowmem",
+           "user_settings": "examples/configs/user_settings_openssl_compat_lowmem.h",
+           "configure": ["--enable-usersettings",
+            "CPPFLAGS=-DHAVE_STACK_SIZE -DHAVE_STACK_SIZE_VERBOSE -DWOLFSSL_TRACK_MEMORY -DWOLFSSL_TRACK_MEMORY_VERBOSE -DWOLFSSL_TEST_MAX_TLS_STACK_BYTES=8192 -DWOLFSSL_TEST_MAX_TLS_HEAP_BYTES=69632"]}
+          ]}
+          EOF2
+          .github/scripts/parallel-make-check.py \
+            ${{ github.event_name == 'schedule' && '--build-only' || '' }} \
+            "$RUNNER_TEMP/opensslmembudget-configs.json"
+
+      - name: ccache stats
+        if: always()
+        run: ccache -s || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          retention-days: 7
+          name: opensslmembudget-logs
+          path: |
+            build-*/make-check.log
+            build-*/test-suite.log
+            build-*/config.log
+          if-no-files-found: ignore

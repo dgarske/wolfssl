@@ -2567,6 +2567,8 @@ static int wolfSSL_TicketKeyCb(WOLFSSL* ssl,
         int encTicketLen, int* encLen, void* ctx)
 {
     WC_DECLARE_VAR(evpCtx, WOLFSSL_EVP_CIPHER_CTX, 1, 0);
+    WC_DECLARE_VAR(hmacCtx, WOLFSSL_HMAC_CTX, 1, 0);
+    void* heap = NULL;
     int ret = WOLFSSL_TICKET_RET_OK;
 
     (void)ctx;
@@ -2578,12 +2580,23 @@ static int wolfSSL_TicketKeyCb(WOLFSSL* ssl,
         WOLFSSL_MSG("Bad parameter");
         ret = WOLFSSL_TICKET_RET_FATAL;
     }
+    else {
+        heap = ssl->heap;
+    }
 
     #ifdef WOLFSSL_SMALL_STACK
     if (ret == WOLFSSL_TICKET_RET_OK) {
-        evpCtx = (WOLFSSL_EVP_CIPHER_CTX *)XMALLOC(sizeof(*evpCtx), ssl->heap,
+        evpCtx = (WOLFSSL_EVP_CIPHER_CTX *)XMALLOC(sizeof(*evpCtx), heap,
             DYNAMIC_TYPE_TMP_BUFFER);
         if (evpCtx == NULL) {
+            WOLFSSL_MSG("out of memory");
+            ret = WOLFSSL_TICKET_RET_FATAL;
+        }
+    }
+    if (ret == WOLFSSL_TICKET_RET_OK) {
+        hmacCtx = (WOLFSSL_HMAC_CTX *)XMALLOC(sizeof(*hmacCtx), heap,
+            DYNAMIC_TYPE_HMAC);
+        if (hmacCtx == NULL) {
             WOLFSSL_MSG("out of memory");
             ret = WOLFSSL_TICKET_RET_FATAL;
         }
@@ -2591,23 +2604,23 @@ static int wolfSSL_TicketKeyCb(WOLFSSL* ssl,
     #endif
 
     if (ret == WOLFSSL_TICKET_RET_OK) {
-        WOLFSSL_HMAC_CTX hmacCtx;
-
         /* Initialize the cipher and HMAC. */
         wolfSSL_EVP_CIPHER_CTX_init(evpCtx);
 
-        if (wolfSSL_HMAC_CTX_Init(&hmacCtx) != WOLFSSL_SUCCESS) {
+        if (wolfSSL_HMAC_CTX_Init(hmacCtx) != WOLFSSL_SUCCESS) {
             WOLFSSL_MSG("wolfSSL_HMAC_CTX_Init error");
             ret = WOLFSSL_TICKET_RET_FATAL;
         }
 
         if (ret == WOLFSSL_TICKET_RET_OK) {
             ret = wolfssl_ticket_key_cb_process(ssl, keyName, iv, mac, enc,
-                encTicket, encTicketLen, encLen, evpCtx, &hmacCtx);
+                encTicket, encTicketLen, encLen, evpCtx, hmacCtx);
         }
         (void)wolfSSL_EVP_CIPHER_CTX_cleanup(evpCtx);
-        WC_FREE_VAR_EX(evpCtx, ssl->heap, DYNAMIC_TYPE_TMP_BUFFER);
     }
+    WC_FREE_VAR_EX(evpCtx, heap, DYNAMIC_TYPE_TMP_BUFFER);
+    WC_FREE_VAR_EX(hmacCtx, heap, DYNAMIC_TYPE_HMAC);
+    (void)heap;
 
     return ret;
 }

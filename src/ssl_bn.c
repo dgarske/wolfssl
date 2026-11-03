@@ -1322,22 +1322,23 @@ int wolfSSL_BN_is_word(const WOLFSSL_BIGNUM* bn, WOLFSSL_BN_ULONG w)
     /* When value is greater than what can be stored in one digit - special
      * case. */
     if (w > (WOLFSSL_BN_ULONG)MP_MASK) {
-        /* TODO: small stack */
-        mp_int w_mp;
+        WC_DECLARE_VAR(w_mp, mp_int, 1, NULL);
 
+        WC_ALLOC_VAR_EX(w_mp, mp_int, 1, NULL, DYNAMIC_TYPE_BIGINT, ret = 0);
         /* Create a MP to hold the number. */
-        if (mp_init(&w_mp) != MP_OKAY) {
+        if ((!WC_VAR_OK(w_mp)) || (mp_init(w_mp) != MP_OKAY)) {
             ret = 0;
         }
         /* Set the value - held in more than one digit. */
-        else if (mp_set_int(&w_mp, w) != MP_OKAY) {
+        else if (mp_set_int(w_mp, w) != MP_OKAY) {
             ret = 0;
         }
         else {
             /* Compare MP representations. */
-            ret = (mp_cmp((mp_int *)bn->internal, &w_mp) == MP_EQ);
-            mp_free(&w_mp);
+            ret = (mp_cmp((mp_int *)bn->internal, w_mp) == MP_EQ);
+            mp_free(w_mp);
         }
+        WC_FREE_VAR_EX(w_mp, NULL, DYNAMIC_TYPE_BIGINT);
     }
     else
 #endif

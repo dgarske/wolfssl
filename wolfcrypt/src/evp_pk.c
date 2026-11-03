@@ -680,7 +680,7 @@ WOLFSSL_EVP_PKEY* wolfSSL_EVP_PKEY_new_raw_private_key(int type,
             }
         #ifdef WOLFSSL_CURVE25519_BLINDING
             /* Use the EVP_PKEY's RNG for scalar blinding on shared-secret. */
-            (void)wc_curve25519_set_rng(cKey, &pkey->rng);
+            (void)wc_curve25519_set_rng(cKey, wolfssl_evp_pkey_rng(pkey));
         #endif
             /* Raw X25519 keys are little-endian (RFC 7748). */
             if (wc_curve25519_import_private_ex(priv, (word32)len, cKey,

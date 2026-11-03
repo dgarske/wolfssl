@@ -7813,6 +7813,206 @@ int test_wolfSSL_client_server_nofail_memio(test_ssl_cbf* client_cb,
 }
 #endif
 
+#if defined(HAVE_SSL_MEMIO_TESTS_DEPENDENCIES) && \
+    (defined(HAVE_STACK_SIZE_VERBOSE) || \
+     (defined(WOLFSSL_TRACK_MEMORY_VERBOSE) && !defined(WOLFSSL_STATIC_MEMORY)))
+    #define HAVE_TLS_RESOURCE_USAGE_TEST
+#endif
+
+#ifdef HAVE_TLS_RESOURCE_USAGE_TEST
+/* Stack and heap high-water marks per stage of a TLS connection over
+ * in-memory I/O. Stack needs --enable-stacksize=verbose and heap needs
+ * --enable-trackmemory=verbose. A stage over one of the
+ * WOLFSSL_TEST_MAX_TLS_* limits fails the test. */
+#ifdef WOLFSSL_TEST_MAX_TLS_STACK_BYTES
+    static const long tls_max_stack_bytes = WOLFSSL_TEST_MAX_TLS_STACK_BYTES;
+#else
+    static const long tls_max_stack_bytes = -1;
+#endif
+#ifdef WOLFSSL_TEST_MAX_TLS_HEAP_BYTES
+    static const long tls_max_heap_bytes = WOLFSSL_TEST_MAX_TLS_HEAP_BYTES;
+#else
+    static const long tls_max_heap_bytes = -1;
+#endif
+#ifdef WOLFSSL_TEST_MAX_TLS_HEAP_ALLOCS
+    static const long tls_max_heap_allocs = WOLFSSL_TEST_MAX_TLS_HEAP_ALLOCS;
+#else
+    static const long tls_max_heap_allocs = -1;
+#endif
+
+typedef struct tls_resource_usage {
+    long heapBytes;
+    long heapAllocs;
+    int  exceeded;
+} tls_resource_usage;
+
+static void tls_resource_usage_begin(tls_resource_usage* u)
+{
+#if defined(WOLFSSL_TRACK_MEMORY_VERBOSE) && !defined(WOLFSSL_STATIC_MEMORY)
+    /* The first call resets the trip odometers, the second reads the
+     * current level they restarted from. */
+    (void)wolfCrypt_heap_peakAllocs_checkpoint();
+    (void)wolfCrypt_heap_peakBytes_checkpoint();
+    u->heapAllocs = wolfCrypt_heap_peakAllocs_checkpoint();
+    u->heapBytes = wolfCrypt_heap_peakBytes_checkpoint();
+#endif
+#ifdef HAVE_STACK_SIZE_VERBOSE
+    (void)StackSizeHWMReset();
+#endif
+    (void)u;
+}
+
+static void tls_resource_usage_end(tls_resource_usage* u, const char* stage)
+{
+    long stack = -1;
+    long heapBytes = -1;
+    long heapAllocs = -1;
+
+#ifdef HAVE_STACK_SIZE_VERBOSE
+    stack = (long)StackSizeHWM_OffsetCorrected();
+    (void)StackSizeHWMReset();
+    if ((tls_max_stack_bytes >= 0) && (stack > tls_max_stack_bytes)) {
+        u->exceeded = 1;
+    }
+#endif
+#if defined(WOLFSSL_TRACK_MEMORY_VERBOSE) && !defined(WOLFSSL_STATIC_MEMORY)
+    heapAllocs = wolfCrypt_heap_peakAllocs_checkpoint() - u->heapAllocs;
+    heapBytes = wolfCrypt_heap_peakBytes_checkpoint() - u->heapBytes;
+    if ((tls_max_heap_bytes >= 0) && (heapBytes > tls_max_heap_bytes)) {
+        u->exceeded = 1;
+    }
+    if ((tls_max_heap_allocs >= 0) && (heapAllocs > tls_max_heap_allocs)) {
+        u->exceeded = 1;
+    }
+#endif
+    printf("    %-18s stack %7ld  heap %7ld bytes %6ld allocs\n", stage,
+        stack, heapBytes, heapAllocs);
+}
+
+static int test_tls_resource_usage_run(tls_resource_usage* u,
+    method_provider cm, method_provider sm, const char* name)
+{
+    EXPECT_DECLS;
+    test_ssl_memio_ctx* test_ctx = NULL;
+    char stage[32];
+
+    /* The memio context carries both I/O buffers, so keep it off the
+     * measured stack. */
+    ExpectNotNull(test_ctx = (test_ssl_memio_ctx*)XMALLOC(sizeof(*test_ctx),
+        NULL, DYNAMIC_TYPE_TMP_BUFFER));
+    if (test_ctx != NULL) {
+        XMEMSET(test_ctx, 0, sizeof(*test_ctx));
+        test_ctx->c_cb.method = cm;
+        test_ctx->s_cb.method = sm;
+
+        XSNPRINTF(stage, sizeof(stage), "%s setup", name);
+        tls_resource_usage_begin(u);
+        ExpectIntEQ(test_ssl_memio_setup(test_ctx), TEST_SUCCESS);
+        tls_resource_usage_end(u, stage);
+
+        XSNPRINTF(stage, sizeof(stage), "%s handshake", name);
+        tls_resource_usage_begin(u);
+        ExpectIntEQ(test_ssl_memio_do_handshake(test_ctx, 10, NULL),
+            TEST_SUCCESS);
+        tls_resource_usage_end(u, stage);
+
+        XSNPRINTF(stage, sizeof(stage), "%s read_write", name);
+        tls_resource_usage_begin(u);
+        ExpectIntEQ(test_ssl_memio_read_write(test_ctx), TEST_SUCCESS);
+        tls_resource_usage_end(u, stage);
+
+        XSNPRINTF(stage, sizeof(stage), "%s cleanup", name);
+        tls_resource_usage_begin(u);
+        test_ssl_memio_cleanup(test_ctx);
+        tls_resource_usage_end(u, stage);
+
+        XFREE(test_ctx, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    }
+
+    return EXPECT_RESULT();
+}
+
+static THREAD_RETURN WOLFSSL_THREAD test_tls_resource_usage_thread(void* args)
+{
+    EXPECT_DECLS;
+    tls_resource_usage u;
+
+    XMEMSET(&u, 0, sizeof(u));
+    STACK_SIZE_INIT();
+
+#ifndef WOLFSSL_NO_TLS12
+    ExpectIntEQ(test_tls_resource_usage_run(&u, wolfTLSv1_2_client_method,
+        wolfTLSv1_2_server_method, "TLSv1.2"), TEST_SUCCESS);
+#endif
+#ifdef WOLFSSL_TLS13
+    ExpectIntEQ(test_tls_resource_usage_run(&u, wolfTLSv1_3_client_method,
+        wolfTLSv1_3_server_method, "TLSv1.3"), TEST_SUCCESS);
+#endif
+    ExpectIntEQ(u.exceeded, 0);
+
+    ((func_args*)args)->return_code = EXPECT_RESULT();
+    WOLFSSL_RETURN_FROM_THREAD(0);
+}
+#endif /* HAVE_TLS_RESOURCE_USAGE_TEST */
+
+/* d2i moves the parsed issuer and subject names into the X509; every entry
+ * must come across, be reachable through the name APIs and be copyable. */
+static int test_wolfssl_x509_name_move(void)
+{
+    EXPECT_DECLS;
+#if defined(OPENSSL_EXTRA) && !defined(NO_FILESYSTEM) && !defined(NO_RSA) && \
+    !defined(NO_CERTS)
+    WOLFSSL_X509* x509 = NULL;
+    WOLFSSL_X509_NAME* name = NULL;
+    WOLFSSL_X509_NAME* copy = NULL;
+    char* line = NULL;
+    int i;
+
+    ExpectNotNull(x509 = wolfSSL_X509_load_certificate_file(svrCertFile,
+        WOLFSSL_FILETYPE_PEM));
+    ExpectNotNull(name = wolfSSL_X509_get_subject_name(x509));
+    ExpectIntEQ(wolfSSL_X509_NAME_entry_count(name), 7);
+    for (i = 0; i < 7; i++) {
+        WOLFSSL_X509_NAME_ENTRY* entry = NULL;
+
+        ExpectNotNull(entry = wolfSSL_X509_NAME_get_entry(name, i));
+        ExpectNotNull(wolfSSL_X509_NAME_ENTRY_get_object(entry));
+        ExpectNotNull(wolfSSL_X509_NAME_ENTRY_get_data(entry));
+    }
+    ExpectIntEQ(wolfSSL_X509_NAME_get_index_by_NID(name, WC_NID_commonName,
+        -1), 5);
+    ExpectNotNull(line = wolfSSL_X509_NAME_oneline(name, NULL, 0));
+    ExpectIntEQ(XSTRCMP(line, "/C=US/ST=Montana/L=Bozeman/O=wolfSSL/"
+        "OU=Support/CN=www.wolfssl.com/emailAddress=facts@wolfssl.com"), 0);
+    XFREE(line, NULL, DYNAMIC_TYPE_OPENSSL);
+
+    ExpectNotNull(copy = wolfSSL_X509_NAME_new());
+    ExpectIntEQ(wolfSSL_X509_NAME_copy(name, copy), WOLFSSL_SUCCESS);
+    ExpectIntEQ(wolfSSL_X509_NAME_cmp(name, copy), 0);
+    wolfSSL_X509_NAME_free(copy);
+    wolfSSL_X509_free(x509);
+#endif
+    return EXPECT_RESULT();
+}
+
+static int test_tls_resource_usage(void)
+{
+    EXPECT_DECLS;
+#ifdef HAVE_TLS_RESOURCE_USAGE_TEST
+    func_args args;
+
+    XMEMSET(&args, 0, sizeof(args));
+    args.return_code = TEST_FAIL;
+#ifdef HAVE_STACK_SIZE
+    ExpectIntEQ(StackSizeCheck(&args, test_tls_resource_usage_thread), 0);
+#else
+    (void)test_tls_resource_usage_thread(&args);
+#endif
+    ExpectIntEQ(args.return_code, TEST_SUCCESS);
+#endif
+    return EXPECT_RESULT();
+}
+
 #ifdef HAVE_IO_TESTS_DEPENDENCIES
 
 #ifdef WOLFSSL_SESSION_EXPORT
@@ -47358,6 +47558,8 @@ TEST_CASE testCases[] = {
     TEST_SSL_RW_DECLS,
     TEST_SSL_HS_DECLS,
     TEST_DECL(test_tls_multi_handshakes_one_record),
+    TEST_DECL(test_tls_resource_usage),
+    TEST_DECL(test_wolfssl_x509_name_move),
     TEST_DECL(test_write_dup),
     TEST_DECL(test_write_dup_want_write),
     TEST_DECL(test_write_dup_want_write_simul),

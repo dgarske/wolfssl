@@ -552,14 +552,12 @@ struct WOLFSSL_ASN1_OBJECT {
 
     struct d { /* dereferenced */
         WOLFSSL_ASN1_STRING* dNSName;
-        WOLFSSL_ASN1_STRING  ia5_internal;
-        WOLFSSL_ASN1_STRING* ia5; /* points to ia5_internal */
+        WOLFSSL_ASN1_STRING* ia5;
 #if defined(OPENSSL_ALL)
         WOLFSSL_ASN1_STRING* uniformResourceIdentifier;
-        WOLFSSL_ASN1_STRING  iPAddress_internal;
         WOLFSSL_ASN1_OTHERNAME* otherName; /* added for Apache httpd */
 #endif
-        WOLFSSL_ASN1_STRING* iPAddress; /* points to iPAddress_internal */
+        WOLFSSL_ASN1_STRING* iPAddress;
     } d;
 };
 
@@ -648,6 +646,7 @@ struct WOLFSSL_EVP_PKEY {
     word16 pkcs8HeaderSz;
 
     /* option bits */
+    WC_BITFIELD rngInit:1; /* rng has been instantiated */
     WC_BITFIELD ownDh:1;  /* if struct owns DH  and should free it */
     WC_BITFIELD ownEcc:1; /* if struct owns ECC and should free it */
     WC_BITFIELD ownDsa:1; /* if struct owns DSA and should free it */

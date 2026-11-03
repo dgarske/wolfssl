@@ -3024,6 +3024,9 @@ typedef struct ProcPeerCertArgs {
     word16 fatal:1;
     word16 verifyErr:1;
     word16 dCertInit:1;
+#ifdef KEEP_PEER_CERT
+    word16 peerCertSet:1; /* ssl->peerCert holds the leaf from dCert */
+#endif
 #ifdef WOLFSSL_CHAIN_VERIFY_CB
     word16 chainDecoded:1; /* peer certs already decode-checked */
 #endif
@@ -4112,6 +4115,11 @@ typedef struct ExternalTicket {
 #define SESSION_TICKET_LEN  \
     ((int)(WOLFSSL_TICKET_FIXED_SZ + WOLFSSL_TICKET_ENC_SZ))
 
+/* Tickets up to this size live in the session; larger ones are allocated. */
+#ifndef WOLFSSL_STATIC_TICKET_LEN
+    #define WOLFSSL_STATIC_TICKET_LEN SESSION_TICKET_LEN
+#endif
+
 typedef struct SessionTicket {
     word32 lifetime;
 #ifdef WOLFSSL_TLS13
@@ -4163,17 +4171,22 @@ WOLFSSL_TEST_VIS void TLSX_SessionTicket_Free(SessionTicket* ticket, void* heap)
 #endif /* HAVE_SESSION_TICKET */
 
 #ifndef MAX_PSK_ID_LEN
-    /* max psk identity/hint supported */
+    /* max psk identity/hint supported; session tickets are not held in
+     * these buffers */
     #if defined(WOLFSSL_TLS13)
-        #ifdef SESSION_TICKET_LEN
-            #define MAX_PSK_ID_LEN SESSION_TICKET_LEN
-        #else
-            /* Previous value. Use as fallback for when tickets are disabled. */
-            #define MAX_PSK_ID_LEN 1536
-        #endif
+        #define MAX_PSK_ID_LEN 1536
     #else
         #define MAX_PSK_ID_LEN 128
     #endif
+#endif
+/* Longest identity in a pre_shared_key extension: an external PSK identity
+ * or a session ticket. */
+#ifdef HAVE_SESSION_TICKET
+    #define MAX_PSK_IDENTITY_LEN \
+        ((SESSION_TICKET_LEN > MAX_PSK_ID_LEN) ? SESSION_TICKET_LEN : \
+                                                 MAX_PSK_ID_LEN)
+#else
+    #define MAX_PSK_IDENTITY_LEN MAX_PSK_ID_LEN
 #endif
 
 #if defined(HAVE_ENCRYPT_THEN_MAC) && !defined(WOLFSSL_AEAD_ONLY)
@@ -5410,7 +5423,7 @@ struct WOLFSSL_SESSION {
     #endif /* WOLFSSL_EARLY_DATA */
 #endif /* HAVE_SESSION_TICKET || !NO_PSK */
 #ifdef HAVE_SESSION_TICKET
-    byte               staticTicket[SESSION_TICKET_LEN];
+    byte               staticTicket[WOLFSSL_STATIC_TICKET_LEN];
     byte*              ticket;
     word16             ticketLen;
     word16             ticketLenAlloc;    /* is dynamic */
@@ -6233,7 +6246,6 @@ struct WOLFSSL_X509_NAME {
     char  staticName[ASN_NAME_MAX];
 #if (defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)) && \
     !defined(NO_ASN)
-    DecodedName fullName;
     int   entrySz; /* number of entries */
     WOLFSSL_X509_NAME_ENTRY entry[MAX_NAME_ENTRIES]; /* all entries i.e. CN */
     WOLFSSL_X509*           x509;   /* x509 that struct belongs to */
@@ -7246,9 +7258,12 @@ struct WOLFSSL {
     WOLFSSL_X509_STORE* x509_store_pt; /* take ownership of external store */
 #endif
 #ifdef KEEP_PEER_CERT
-    /* TODO put this on the heap so we can properly use the
-     * reference counter and not have to duplicate it. */
+#ifdef WOLFSSL_DYNAMIC_PEER_CERT
+    WOLFSSL_X509*    peerCert;           /* X509 peer cert, NULL until one
+                                          * is received */
+#else
     WOLFSSL_X509     peerCert;           /* X509 peer cert */
+#endif
 #endif
 #ifdef KEEP_OUR_CERT
     WOLFSSL_X509*    ourCert;            /* keep alive a X509 struct of cert.
@@ -8121,11 +8136,28 @@ WOLFSSL_LOCAL enum wc_HashType HashAlgoToType(int hashAlgo);
     WOLFSSL_LOCAL void InitX509Name(WOLFSSL_X509_NAME* name, int dynamicFlag,
                                     void* heap);
     WOLFSSL_LOCAL void FreeX509Name(WOLFSSL_X509_NAME* name);
+#if defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)
+    WOLFSSL_LOCAL int wolfssl_x509_name_move(WOLFSSL_X509_NAME* to,
+                                             WOLFSSL_X509_NAME* from);
+#endif
     WOLFSSL_LOCAL void InitX509(WOLFSSL_X509* x509, int dynamicFlag,
                                 void* heap);
     WOLFSSL_LOCAL void FreeX509(WOLFSSL_X509* x509);
     WOLFSSL_LOCAL void ReinitX509(WOLFSSL_X509* x509);
     #ifndef NO_ASN
+#ifdef KEEP_PEER_CERT
+    /* The connection's peer certificate object; NULL only when dynamic. */
+    static WC_INLINE WOLFSSL_X509* GetPeerCert(const WOLFSSL* ssl)
+    {
+    #ifdef WOLFSSL_DYNAMIC_PEER_CERT
+        return ssl->peerCert;
+    #else
+        return (WOLFSSL_X509*)&ssl->peerCert;
+    #endif
+    }
+    WOLFSSL_LOCAL void FreePeerCert(WOLFSSL* ssl);
+    WOLFSSL_LOCAL int  SetPeerCert(WOLFSSL* ssl, DecodedCert* dCert);
+#endif
     WOLFSSL_LOCAL int  CopyDecodedToX509(WOLFSSL_X509* x509,
                                          DecodedCert* dCert);
     #endif

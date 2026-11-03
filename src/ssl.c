@@ -4022,8 +4022,9 @@ const char *wolfSSL_get0_peername(WOLFSSL *ssl) {
     else if (ssl->session && ssl->session->peer)
         return ssl->session->peer->subjectCN;
 #ifdef KEEP_PEER_CERT
-    else if (ssl->peerCert.subjectCN[0])
-        return ssl->peerCert.subjectCN;
+    else if ((GetPeerCert(ssl) != NULL) &&
+             (GetPeerCert(ssl)->subjectCN[0] != '\0'))
+        return GetPeerCert(ssl)->subjectCN;
 #endif
     else {
         ssl->error = NO_PEER_CERT;
@@ -6139,8 +6140,7 @@ size_t wolfSSL_get_client_random(const WOLFSSL* ssl, unsigned char* out,
             return WOLFSSL_FAILURE;
 
 #ifdef KEEP_PEER_CERT
-        FreeX509(&ssl->peerCert);
-        InitX509(&ssl->peerCert, 0, ssl->heap);
+        FreePeerCert(ssl);
 #endif
 
 #ifdef WOLFSSL_QUIC
@@ -7694,7 +7694,7 @@ long wolfSSL_set_options(WOLFSSL* ssl, long op)
         }
         else {
             /* Only preserve overlapping suites */
-            Suites tmpSuites;
+            WC_DECLARE_VAR(tmpSuites, Suites, 1, ssl->heap);
             word16 in, out;
             word16 haveECDSAsig, haveStaticECC;
 #ifdef NO_RSA
@@ -7704,7 +7704,9 @@ long wolfSSL_set_options(WOLFSSL* ssl, long op)
             haveECDSAsig = 0;
             haveStaticECC = ssl->options.haveStaticECC;
 #endif
-            XMEMSET(&tmpSuites, 0, sizeof(Suites));
+            WC_ALLOC_VAR_EX(tmpSuites, Suites, 1, ssl->heap,
+                DYNAMIC_TYPE_SUITES, return (long)ssl->options.mask);
+            XMEMSET(tmpSuites, 0, sizeof(Suites));
             /* Get all possible ciphers and sigalgs for the version. Following
              * options limit the allowed ciphers so let's try to get as many as
              * possible.
@@ -7712,11 +7714,11 @@ long wolfSSL_set_options(WOLFSSL* ssl, long op)
              * - haveECDSAsig turns off haveRSAsig
              * - SUITES_NULL_EXPLICIT includes the integrity-only suites, so
              *   an explicitly configured one is preserved */
-            InitSuites(&tmpSuites, ssl->version, 0, 1, 1, 1, haveECDSAsig, 1, 1,
+            InitSuites(tmpSuites, ssl->version, 0, 1, 1, 1, haveECDSAsig, 1, 1,
                     haveStaticECC, 1, SUITES_NULL_EXPLICIT, 1, 1, 1,
                     ssl->options.side);
             for (in = 0, out = 0; in < ssl->suites->suiteSz; in += SUITE_LEN) {
-                if (FindSuite(&tmpSuites, ssl->suites->suites[in],
+                if (FindSuite(tmpSuites, ssl->suites->suites[in],
                         ssl->suites->suites[in+1]) >= 0) {
                     ssl->suites->suites[out] = ssl->suites->suites[in];
                     ssl->suites->suites[out+1] = ssl->suites->suites[in+1];
@@ -7725,7 +7727,7 @@ long wolfSSL_set_options(WOLFSSL* ssl, long op)
             }
             ssl->suites->suiteSz = out;
             for (in = 0, out = 0; in < ssl->suites->hashSigAlgoSz; in += 2) {
-                if (FindHashSig(&tmpSuites, ssl->suites->hashSigAlgo[in],
+                if (FindHashSig(tmpSuites, ssl->suites->hashSigAlgo[in],
                     ssl->suites->hashSigAlgo[in+1]) >= 0) {
                     ssl->suites->hashSigAlgo[out] =
                             ssl->suites->hashSigAlgo[in];
@@ -7735,6 +7737,7 @@ long wolfSSL_set_options(WOLFSSL* ssl, long op)
                 }
             }
             ssl->suites->hashSigAlgoSz = out;
+            WC_FREE_VAR_EX(tmpSuites, ssl->heap, DYNAMIC_TYPE_SUITES);
         }
     }
 

@@ -5130,9 +5130,12 @@ int wolfSSL_EC25519_generate_key(unsigned char *priv, unsigned int *privSz,
     int initTmpRng = 0;
     WC_RNG *rng = NULL;
     WC_DECLARE_VAR(tmpRng, WC_RNG, 1, 0);
-    curve25519_key key;
+    WC_DECLARE_VAR(key, curve25519_key, 1, NULL);
 
     WOLFSSL_ENTER("wolfSSL_EC25519_generate_key");
+
+    WC_ALLOC_VAR_EX(key, curve25519_key, 1, NULL, DYNAMIC_TYPE_CURVE25519,
+        res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz == NULL) || (*privSz < CURVE25519_KEYSIZE) ||
@@ -5151,20 +5154,20 @@ int wolfSSL_EC25519_generate_key(unsigned char *priv, unsigned int *privSz,
     }
 
     /* Initialize a Curve25519 key. */
-    if (res && (wc_curve25519_init(&key) != 0)) {
+    if (res && (wc_curve25519_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve25519_init failed");
         res = 0;
     }
     if (res) {
         /* Make a Curve25519 key pair. */
-        int ret = wc_curve25519_make_key(rng, CURVE25519_KEYSIZE, &key);
+        int ret = wc_curve25519_make_key(rng, CURVE25519_KEYSIZE, key);
         if (ret != MP_OKAY) {
             WOLFSSL_MSG("wc_curve25519_make_key failed");
             res = 0;
         }
         if (res) {
             /* Export Curve25519 key pair to buffers. */
-            ret = wc_curve25519_export_key_raw_ex(&key, priv, privSz, pub,
+            ret = wc_curve25519_export_key_raw_ex(key, priv, privSz, pub,
                 pubSz, EC25519_LITTLE_ENDIAN);
             if (ret != MP_OKAY) {
                 WOLFSSL_MSG("wc_curve25519_export_key_raw_ex failed");
@@ -5173,7 +5176,7 @@ int wolfSSL_EC25519_generate_key(unsigned char *priv, unsigned int *privSz,
         }
 
         /* Dispose of key. */
-        wc_curve25519_free(&key);
+        wc_curve25519_free(key);
     }
 
     if (initTmpRng) {
@@ -5181,6 +5184,7 @@ int wolfSSL_EC25519_generate_key(unsigned char *priv, unsigned int *privSz,
         WC_FREE_VAR_EX(rng, NULL, DYNAMIC_TYPE_RNG);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_CURVE25519);
     return res;
 #else
     WOLFSSL_MSG("No Key Gen built in");
@@ -5214,8 +5218,8 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
 {
 #ifdef WOLFSSL_KEY_GEN
     int res = 1;
-    curve25519_key privkey;
-    curve25519_key pubkey;
+    WC_DECLARE_VAR(privkey, curve25519_key, 1, NULL);
+    WC_DECLARE_VAR(pubkey, curve25519_key, 1, NULL);
 #ifdef WOLFSSL_CURVE25519_BLINDING
     WC_RNG* rng = NULL;
     WC_DECLARE_VAR(tmpRng, WC_RNG, 1, 0);
@@ -5223,6 +5227,11 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
 #endif
 
     WOLFSSL_ENTER("wolfSSL_EC25519_shared_key");
+
+    WC_ALLOC_VAR_EX(privkey, curve25519_key, 1, NULL, DYNAMIC_TYPE_CURVE25519,
+        res = 0);
+    WC_ALLOC_VAR_EX(pubkey, curve25519_key, 1, NULL, DYNAMIC_TYPE_CURVE25519,
+        res = 0);
 
     /* Validate parameters. */
     if ((shared == NULL) || (sharedSz == NULL) ||
@@ -5234,7 +5243,7 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
     }
 
     /* Initialize private key object. */
-    if (res && (wc_curve25519_init(&privkey) != 0)) {
+    if (res && (wc_curve25519_init(privkey) != 0)) {
         WOLFSSL_MSG("wc_curve25519_init privkey failed");
         res = 0;
     }
@@ -5246,19 +5255,19 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
             WOLFSSL_MSG("wolfSSL_EC25519_shared_key failed to make RNG");
             res = 0;
         }
-        else if (wc_curve25519_set_rng(&privkey, rng) != 0) {
+        else if (wc_curve25519_set_rng(privkey, rng) != 0) {
             res = 0;
         }
         else
     #endif
         /* Initialize public key object. */
-        if (wc_curve25519_init(&pubkey) != MP_OKAY) {
+        if (wc_curve25519_init(pubkey) != MP_OKAY) {
             WOLFSSL_MSG("wc_curve25519_init pubkey failed");
             res = 0;
         }
         if (res) {
             /* Import our private key. */
-            int ret = wc_curve25519_import_private_ex(priv, privSz, &privkey,
+            int ret = wc_curve25519_import_private_ex(priv, privSz, privkey,
                 EC25519_LITTLE_ENDIAN);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_curve25519_import_private_ex failed");
@@ -5267,7 +5276,7 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
 
             if (res) {
                 /* Import peer's public key. */
-                ret = wc_curve25519_import_public_ex(pub, pubSz, &pubkey,
+                ret = wc_curve25519_import_public_ex(pub, pubSz, pubkey,
                     EC25519_LITTLE_ENDIAN);
                 if (ret != 0) {
                     WOLFSSL_MSG("wc_curve25519_import_public_ex failed");
@@ -5276,7 +5285,7 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
             }
             if (res) {
                 /* Compute shared secret. */
-                ret = wc_curve25519_shared_secret_ex(&privkey, &pubkey, shared,
+                ret = wc_curve25519_shared_secret_ex(privkey, pubkey, shared,
                     sharedSz, EC25519_LITTLE_ENDIAN);
                 if (ret != 0) {
                     WOLFSSL_MSG("wc_curve25519_shared_secret_ex failed");
@@ -5284,9 +5293,9 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
                 }
             }
 
-            wc_curve25519_free(&pubkey);
+            wc_curve25519_free(pubkey);
         }
-        wc_curve25519_free(&privkey);
+        wc_curve25519_free(privkey);
     }
 
 #ifdef WOLFSSL_CURVE25519_BLINDING
@@ -5297,6 +5306,8 @@ int wolfSSL_EC25519_shared_key(unsigned char *shared, unsigned int *sharedSz,
     }
 #endif
 
+    WC_FREE_VAR_EX(privkey, NULL, DYNAMIC_TYPE_CURVE25519);
+    WC_FREE_VAR_EX(pubkey, NULL, DYNAMIC_TYPE_CURVE25519);
     return res;
 #else
     WOLFSSL_MSG("No Key Gen built in");
@@ -5344,9 +5355,11 @@ int wolfSSL_ED25519_generate_key(unsigned char *priv, unsigned int *privSz,
     int initTmpRng = 0;
     WC_RNG *rng = NULL;
     WC_DECLARE_VAR(tmpRng, WC_RNG, 1, 0);
-    ed25519_key key;
+    WC_DECLARE_VAR(key, ed25519_key, 1, NULL);
 
     WOLFSSL_ENTER("wolfSSL_ED25519_generate_key");
+
+    WC_ALLOC_VAR_EX(key, ed25519_key, 1, NULL, DYNAMIC_TYPE_ED25519, res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz == NULL) ||
@@ -5366,27 +5379,27 @@ int wolfSSL_ED25519_generate_key(unsigned char *priv, unsigned int *privSz,
     }
 
     /* Initialize an Ed25519 key. */
-    if (res && (wc_ed25519_init(&key) != 0)) {
+    if (res && (wc_ed25519_init(key) != 0)) {
         WOLFSSL_MSG("wc_ed25519_init failed");
         res = 0;
     }
     if (res) {
         /* Make an Ed25519 key pair. */
-        int ret = wc_ed25519_make_key(rng, ED25519_KEY_SIZE, &key);
+        int ret = wc_ed25519_make_key(rng, ED25519_KEY_SIZE, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed25519_make_key failed");
             res = 0;
         }
         if (res) {
             /* Export Curve25519 key pair to buffers. */
-            ret = wc_ed25519_export_key(&key, priv, privSz, pub, pubSz);
+            ret = wc_ed25519_export_key(key, priv, privSz, pub, pubSz);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_ed25519_export_key failed");
                 res = 0;
             }
         }
 
-        wc_ed25519_free(&key);
+        wc_ed25519_free(key);
     }
 
     if (initTmpRng) {
@@ -5394,6 +5407,7 @@ int wolfSSL_ED25519_generate_key(unsigned char *priv, unsigned int *privSz,
         WC_FREE_VAR_EX(rng, NULL, DYNAMIC_TYPE_RNG);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED25519);
     return res;
 #else
 #ifndef HAVE_ED25519_MAKE_KEY
@@ -5434,10 +5448,12 @@ int wolfSSL_ED25519_sign(const unsigned char *msg, unsigned int msgSz,
 {
 #if defined(HAVE_ED25519_SIGN) && defined(WOLFSSL_KEY_GEN) && \
     defined(HAVE_ED25519_KEY_IMPORT)
-    ed25519_key key;
+    WC_DECLARE_VAR(key, ed25519_key, 1, NULL);
     int res = 1;
 
     WOLFSSL_ENTER("wolfSSL_ED25519_sign");
+
+    WC_ALLOC_VAR_EX(key, ed25519_key, 1, NULL, DYNAMIC_TYPE_ED25519, res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz != ED25519_PRV_KEY_SIZE) ||
@@ -5448,14 +5464,14 @@ int wolfSSL_ED25519_sign(const unsigned char *msg, unsigned int msgSz,
     }
 
     /* Initialize Ed25519 key. */
-    if (res && (wc_ed25519_init(&key) != 0)) {
+    if (res && (wc_ed25519_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve25519_init failed");
         res = 0;
     }
     if (res) {
         /* Import private and public key. */
         int ret = wc_ed25519_import_private_key(priv, privSz / 2,
-            priv + (privSz / 2), ED25519_PUB_KEY_SIZE, &key);
+            priv + (privSz / 2), ED25519_PUB_KEY_SIZE, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed25519_import_private failed");
             res = 0;
@@ -5463,16 +5479,17 @@ int wolfSSL_ED25519_sign(const unsigned char *msg, unsigned int msgSz,
 
         if (res) {
             /* Sign message with Ed25519. */
-            ret = wc_ed25519_sign_msg(msg, msgSz, sig, sigSz, &key);
+            ret = wc_ed25519_sign_msg(msg, msgSz, sig, sigSz, key);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_curve25519_shared_secret_ex failed");
                 res = 0;
             }
         }
 
-        wc_ed25519_free(&key);
+        wc_ed25519_free(key);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED25519);
     return res;
 #else
 #if !defined(HAVE_ED25519_SIGN)
@@ -5513,10 +5530,12 @@ int wolfSSL_ED25519_verify(const unsigned char *msg, unsigned int msgSz,
 {
 #if defined(HAVE_ED25519_VERIFY) && defined(WOLFSSL_KEY_GEN) && \
     defined(HAVE_ED25519_KEY_IMPORT)
-    ed25519_key key;
+    WC_DECLARE_VAR(key, ed25519_key, 1, NULL);
     int res = 1;
 
     WOLFSSL_ENTER("wolfSSL_ED25519_verify");
+
+    WC_ALLOC_VAR_EX(key, ed25519_key, 1, NULL, DYNAMIC_TYPE_ED25519, res = 0);
 
     /* Validate parameters. */
     if ((pub == NULL) || (pubSz != ED25519_PUB_KEY_SIZE) || (msg == NULL) ||
@@ -5526,13 +5545,13 @@ int wolfSSL_ED25519_verify(const unsigned char *msg, unsigned int msgSz,
     }
 
     /* Initialize Ed25519 key. */
-    if (res && (wc_ed25519_init(&key) != 0)) {
+    if (res && (wc_ed25519_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve25519_init failed");
         res = 0;
     }
     if (res) {
         /* Import public key. */
-        int ret = wc_ed25519_import_public(pub, pubSz, &key);
+        int ret = wc_ed25519_import_public(pub, pubSz, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed25519_import_public failed");
             res = 0;
@@ -5543,7 +5562,7 @@ int wolfSSL_ED25519_verify(const unsigned char *msg, unsigned int msgSz,
 
             /* Verify signature with message and public key. */
             ret = wc_ed25519_verify_msg((byte*)sig, sigSz, msg, msgSz, &check,
-                &key);
+                key);
             /* Check for errors in verification process. */
             if (ret != 0) {
                 WOLFSSL_MSG("wc_ed25519_verify_msg failed");
@@ -5556,9 +5575,10 @@ int wolfSSL_ED25519_verify(const unsigned char *msg, unsigned int msgSz,
             }
         }
 
-        wc_ed25519_free(&key);
+        wc_ed25519_free(key);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED25519);
     return res;
 #else
 #if !defined(HAVE_ED25519_VERIFY)
@@ -5667,9 +5687,11 @@ int wolfSSL_EC448_generate_key(unsigned char *priv, unsigned int *privSz,
     int initTmpRng = 0;
     WC_RNG *rng = NULL;
     WC_DECLARE_VAR(tmpRng, WC_RNG, 1, 0);
-    curve448_key key;
+    WC_DECLARE_VAR(key, curve448_key, 1, NULL);
 
     WOLFSSL_ENTER("wolfSSL_EC448_generate_key");
+
+    WC_ALLOC_VAR_EX(key, curve448_key, 1, NULL, DYNAMIC_TYPE_CURVE448, res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz == NULL) || (*privSz < CURVE448_KEY_SIZE) ||
@@ -5688,20 +5710,20 @@ int wolfSSL_EC448_generate_key(unsigned char *priv, unsigned int *privSz,
     }
 
     /* Initialize a Curve448 key. */
-    if (res && (wc_curve448_init(&key) != 0)) {
+    if (res && (wc_curve448_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve448_init failed");
         res = 0;
     }
     if (res) {
         /* Make a Curve448 key pair. */
-        int ret = wc_curve448_make_key(rng, CURVE448_KEY_SIZE, &key);
+        int ret = wc_curve448_make_key(rng, CURVE448_KEY_SIZE, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_curve448_make_key failed");
             res = 0;
         }
         if (res) {
             /* Export Curve448 key pair to buffers. */
-            ret = wc_curve448_export_key_raw_ex(&key, priv, privSz, pub, pubSz,
+            ret = wc_curve448_export_key_raw_ex(key, priv, privSz, pub, pubSz,
                 EC448_LITTLE_ENDIAN);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_curve448_export_key_raw_ex failed");
@@ -5710,7 +5732,7 @@ int wolfSSL_EC448_generate_key(unsigned char *priv, unsigned int *privSz,
         }
 
         /* Dispose of key. */
-        wc_curve448_free(&key);
+        wc_curve448_free(key);
     }
 
     if (initTmpRng) {
@@ -5718,6 +5740,7 @@ int wolfSSL_EC448_generate_key(unsigned char *priv, unsigned int *privSz,
         WC_FREE_VAR_EX(rng, NULL, DYNAMIC_TYPE_RNG);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_CURVE448);
     return res;
 #else
     WOLFSSL_MSG("No Key Gen built in");
@@ -5751,10 +5774,15 @@ int wolfSSL_EC448_shared_key(unsigned char *shared, unsigned int *sharedSz,
 {
 #ifdef WOLFSSL_KEY_GEN
     int res = 1;
-    curve448_key privkey;
-    curve448_key pubkey;
+    WC_DECLARE_VAR(privkey, curve448_key, 1, NULL);
+    WC_DECLARE_VAR(pubkey, curve448_key, 1, NULL);
 
     WOLFSSL_ENTER("wolfSSL_EC448_shared_key");
+
+    WC_ALLOC_VAR_EX(privkey, curve448_key, 1, NULL, DYNAMIC_TYPE_CURVE448,
+        res = 0);
+    WC_ALLOC_VAR_EX(pubkey, curve448_key, 1, NULL, DYNAMIC_TYPE_CURVE448,
+        res = 0);
 
     /* Validate parameters. */
     if ((shared == NULL) || (sharedSz == NULL) ||
@@ -5766,19 +5794,19 @@ int wolfSSL_EC448_shared_key(unsigned char *shared, unsigned int *sharedSz,
     }
 
     /* Initialize private key object. */
-    if (res && (wc_curve448_init(&privkey) != 0)) {
+    if (res && (wc_curve448_init(privkey) != 0)) {
         WOLFSSL_MSG("wc_curve448_init privkey failed");
         res = 0;
     }
     if (res) {
         /* Initialize public key object. */
-        if (wc_curve448_init(&pubkey) != MP_OKAY) {
+        if (wc_curve448_init(pubkey) != MP_OKAY) {
             WOLFSSL_MSG("wc_curve448_init pubkey failed");
             res = 0;
         }
         if (res) {
             /* Import our private key. */
-            int ret = wc_curve448_import_private_ex(priv, privSz, &privkey,
+            int ret = wc_curve448_import_private_ex(priv, privSz, privkey,
                 EC448_LITTLE_ENDIAN);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_curve448_import_private_ex failed");
@@ -5787,7 +5815,7 @@ int wolfSSL_EC448_shared_key(unsigned char *shared, unsigned int *sharedSz,
 
             if (res) {
                 /* Import peer's public key. */
-                ret = wc_curve448_import_public_ex(pub, pubSz, &pubkey,
+                ret = wc_curve448_import_public_ex(pub, pubSz, pubkey,
                     EC448_LITTLE_ENDIAN);
                 if (ret != 0) {
                     WOLFSSL_MSG("wc_curve448_import_public_ex failed");
@@ -5796,7 +5824,7 @@ int wolfSSL_EC448_shared_key(unsigned char *shared, unsigned int *sharedSz,
             }
             if (res) {
                 /* Compute shared secret. */
-                ret = wc_curve448_shared_secret_ex(&privkey, &pubkey, shared,
+                ret = wc_curve448_shared_secret_ex(privkey, pubkey, shared,
                     sharedSz, EC448_LITTLE_ENDIAN);
                 if (ret != 0) {
                     WOLFSSL_MSG("wc_curve448_shared_secret_ex failed");
@@ -5804,11 +5832,13 @@ int wolfSSL_EC448_shared_key(unsigned char *shared, unsigned int *sharedSz,
                 }
             }
 
-            wc_curve448_free(&pubkey);
+            wc_curve448_free(pubkey);
         }
-        wc_curve448_free(&privkey);
+        wc_curve448_free(privkey);
     }
 
+    WC_FREE_VAR_EX(privkey, NULL, DYNAMIC_TYPE_CURVE448);
+    WC_FREE_VAR_EX(pubkey, NULL, DYNAMIC_TYPE_CURVE448);
     return res;
 #else
     WOLFSSL_MSG("No Key Gen built in");
@@ -5855,9 +5885,11 @@ int wolfSSL_ED448_generate_key(unsigned char *priv, unsigned int *privSz,
     int initTmpRng = 0;
     WC_RNG *rng = NULL;
     WC_DECLARE_VAR(tmpRng, WC_RNG, 1, 0);
-    ed448_key key;
+    WC_DECLARE_VAR(key, ed448_key, 1, NULL);
 
     WOLFSSL_ENTER("wolfSSL_ED448_generate_key");
+
+    WC_ALLOC_VAR_EX(key, ed448_key, 1, NULL, DYNAMIC_TYPE_ED448, res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz == NULL) ||
@@ -5877,27 +5909,27 @@ int wolfSSL_ED448_generate_key(unsigned char *priv, unsigned int *privSz,
     }
 
     /* Initialize an Ed448 key. */
-    if (res && (wc_ed448_init(&key) != 0)) {
+    if (res && (wc_ed448_init(key) != 0)) {
         WOLFSSL_MSG("wc_ed448_init failed");
         res = 0;
     }
     if (res) {
         /* Make an Ed448 key pair. */
-        int ret = wc_ed448_make_key(rng, ED448_KEY_SIZE, &key);
+        int ret = wc_ed448_make_key(rng, ED448_KEY_SIZE, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed448_make_key failed");
             res = 0;
         }
         if (res) {
             /* Export Curve448 key pair to buffers. */
-            ret = wc_ed448_export_key(&key, priv, privSz, pub, pubSz);
+            ret = wc_ed448_export_key(key, priv, privSz, pub, pubSz);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_ed448_export_key failed");
                 res = 0;
             }
         }
 
-        wc_ed448_free(&key);
+        wc_ed448_free(key);
     }
 
     if (initTmpRng) {
@@ -5905,6 +5937,7 @@ int wolfSSL_ED448_generate_key(unsigned char *priv, unsigned int *privSz,
         WC_FREE_VAR_EX(rng, NULL, DYNAMIC_TYPE_RNG);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED448);
     return res;
 #else
 #ifndef WOLFSSL_KEY_GEN
@@ -5943,10 +5976,12 @@ int wolfSSL_ED448_sign(const unsigned char *msg, unsigned int msgSz,
 {
 #if defined(HAVE_ED448_SIGN) && defined(WOLFSSL_KEY_GEN) && \
     defined(HAVE_ED448_KEY_IMPORT)
-    ed448_key key;
+    WC_DECLARE_VAR(key, ed448_key, 1, NULL);
     int res = 1;
 
     WOLFSSL_ENTER("wolfSSL_ED448_sign");
+
+    WC_ALLOC_VAR_EX(key, ed448_key, 1, NULL, DYNAMIC_TYPE_ED448, res = 0);
 
     /* Validate parameters. */
     if ((priv == NULL) || (privSz != ED448_PRV_KEY_SIZE) ||
@@ -5957,14 +5992,14 @@ int wolfSSL_ED448_sign(const unsigned char *msg, unsigned int msgSz,
     }
 
     /* Initialize Ed448 key. */
-    if (res && (wc_ed448_init(&key) != 0)) {
+    if (res && (wc_ed448_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve448_init failed");
         res = 0;
     }
     if (res) {
         /* Import private and public key. */
         int ret = wc_ed448_import_private_key(priv, privSz / 2,
-            priv + (privSz / 2), ED448_PUB_KEY_SIZE, &key);
+            priv + (privSz / 2), ED448_PUB_KEY_SIZE, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed448_import_private failed");
             res = 0;
@@ -5972,16 +6007,17 @@ int wolfSSL_ED448_sign(const unsigned char *msg, unsigned int msgSz,
 
         if (res) {
             /* Sign message with Ed448 - no context. */
-            ret = wc_ed448_sign_msg(msg, msgSz, sig, sigSz, &key, NULL, 0);
+            ret = wc_ed448_sign_msg(msg, msgSz, sig, sigSz, key, NULL, 0);
             if (ret != 0) {
                 WOLFSSL_MSG("wc_curve448_shared_secret_ex failed");
                 res = 0;
             }
         }
 
-        wc_ed448_free(&key);
+        wc_ed448_free(key);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED448);
     return res;
 #else
 #if !defined(HAVE_ED448_SIGN)
@@ -6022,10 +6058,12 @@ int wolfSSL_ED448_verify(const unsigned char *msg, unsigned int msgSz,
 {
 #if defined(HAVE_ED448_VERIFY) && defined(WOLFSSL_KEY_GEN) && \
     defined(HAVE_ED448_KEY_IMPORT)
-    ed448_key key;
+    WC_DECLARE_VAR(key, ed448_key, 1, NULL);
     int res = 1;
 
     WOLFSSL_ENTER("wolfSSL_ED448_verify");
+
+    WC_ALLOC_VAR_EX(key, ed448_key, 1, NULL, DYNAMIC_TYPE_ED448, res = 0);
 
     /* Validate parameters. */
     if ((pub == NULL) || (pubSz != ED448_PUB_KEY_SIZE) || (msg == NULL) ||
@@ -6035,13 +6073,13 @@ int wolfSSL_ED448_verify(const unsigned char *msg, unsigned int msgSz,
     }
 
     /* Initialize Ed448 key. */
-    if (res && (wc_ed448_init(&key) != 0)) {
+    if (res && (wc_ed448_init(key) != 0)) {
         WOLFSSL_MSG("wc_curve448_init failed");
         res = 0;
     }
     if (res) {
         /* Import public key. */
-        int ret = wc_ed448_import_public(pub, pubSz, &key);
+        int ret = wc_ed448_import_public(pub, pubSz, key);
         if (ret != 0) {
             WOLFSSL_MSG("wc_ed448_import_public failed");
             res = 0;
@@ -6052,7 +6090,7 @@ int wolfSSL_ED448_verify(const unsigned char *msg, unsigned int msgSz,
 
             /* Verify signature with message and public key - no context. */
             ret = wc_ed448_verify_msg((byte*)sig, sigSz, msg, msgSz, &check,
-                &key, NULL, 0);
+                key, NULL, 0);
             /* Check for errors in verification process. */
             if (ret != 0) {
                 WOLFSSL_MSG("wc_ed448_verify_msg failed");
@@ -6065,9 +6103,10 @@ int wolfSSL_ED448_verify(const unsigned char *msg, unsigned int msgSz,
             }
         }
 
-        wc_ed448_free(&key);
+        wc_ed448_free(key);
     }
 
+    WC_FREE_VAR_EX(key, NULL, DYNAMIC_TYPE_ED448);
     return res;
 #else
 #if !defined(HAVE_ED448_VERIFY)

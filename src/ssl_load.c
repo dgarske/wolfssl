@@ -2368,6 +2368,9 @@ static int ProcessBufferCert(WOLFSSL_CTX* ctx, WOLFSSL* ssl, DerBuffer* der)
         WOLFSSL_MSG("Checking cert signature type");
         /* Initialize certificate object. */
         InitDecodedCert_ex(cert, der->buffer, der->length, heap, devId);
+    #ifdef WOLFSSL_X509_NAME_AVAILABLE
+        cert->noX509Name = 1;
+    #endif
 
         /* Decode up to and including public key. */
         if (DecodeToKey(cert, 0) < 0) {

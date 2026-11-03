@@ -9206,7 +9206,7 @@ int InitSSL(WOLFSSL* ssl, WOLFSSL_CTX* ctx, int writeDup)
     }
 #endif
 
-#ifdef KEEP_PEER_CERT
+#if defined(KEEP_PEER_CERT) && !defined(WOLFSSL_DYNAMIC_PEER_CERT)
     InitX509(&ssl->peerCert, 0, ssl->heap);
 #endif
 
@@ -10549,7 +10549,7 @@ void wolfSSL_ResourceFree(WOLFSSL* ssl)
         wolfSSL_X509_STORE_free(ssl->x509_store_pt);
 #endif
 #ifdef KEEP_PEER_CERT
-    FreeX509(&ssl->peerCert);
+    FreePeerCert(ssl);
 #endif
 
     if (ssl->session != NULL)
@@ -15892,65 +15892,6 @@ static int CopyDecodedPubKey(WOLFSSL_X509* x509, DecodedCert* dCert, int ret)
 #if defined(OPENSSL_ALL)
         if (ret == 0) {
             x509->key.pubKeyOID = (int)dCert->keyOID;
-
-            if (!x509->key.algor) {
-                x509->key.algor = wolfSSL_X509_ALGOR_new();
-            } else {
-                wolfSSL_ASN1_OBJECT_free(x509->key.algor->algorithm);
-            }
-            if (!x509->key.algor) {
-                ret = MEMORY_E;
-            } else {
-                if (!(x509->key.algor->algorithm =
-                    wolfSSL_OBJ_nid2obj(oid2nid(dCert->keyOID, oidKeyType)))) {
-                    ret = PUBLIC_KEY_E;
-                    WOLFSSL_ERROR_VERBOSE(ret);
-                }
-            }
-
-            switch (dCert->keyOID) {
-            #ifdef HAVE_ED25519
-                case ED25519k:
-                    x509->key.pkey = wolfSSL_EVP_PKEY_new_raw_public_key(
-                        WC_EVP_PKEY_ED25519, NULL, dCert->publicKey,
-                        dCert->pubKeySize);
-                    break;
-            #endif
-            #ifdef HAVE_ED448
-                case ED448k:
-                    x509->key.pkey = wolfSSL_EVP_PKEY_new_raw_public_key(
-                        WC_EVP_PKEY_ED448, NULL, dCert->publicKey,
-                        dCert->pubKeySize);
-                    break;
-            #endif
-            #if defined(WOLFSSL_HAVE_MLDSA) && \
-                defined(WOLFSSL_MLDSA_PUBLIC_KEY) && \
-                !defined(WOLFSSL_MLDSA_NO_ASN1) && \
-                defined(WC_ENABLE_ASYM_KEY_EXPORT)
-            #ifdef WOLFSSL_MLDSA_FIPS204_DRAFT
-                case DILITHIUM_LEVEL2k:
-                case DILITHIUM_LEVEL3k:
-                case DILITHIUM_LEVEL5k:
-            #endif
-                case ML_DSA_44k:
-                case ML_DSA_65k:
-                case ML_DSA_87k:
-                    /* Raw key size does not distinguish draft from final, so
-                     * encode with the certificate's key OID. This fills
-                     * the x509->key.pkey cache without a new reference. */
-                    (void)wolfSSL_X509_get0_pubkey(x509);
-                    break;
-            #endif
-                default:
-                    x509->key.pkey = wolfSSL_d2i_PUBKEY(NULL,
-                        &dCert->publicKey, dCert->pubKeySize);
-                    break;
-            }
-
-            if (x509->key.pkey == NULL) {
-                ret = PUBLIC_KEY_E;
-                WOLFSSL_ERROR_VERBOSE(ret);
-            }
         }
 #endif
     }
@@ -16185,16 +16126,25 @@ int CopyDecodedToX509(WOLFSSL_X509* x509, DecodedCert* dCert)
     CopyDecodedName(&x509->issuer, dCert, ASN_ISSUER);
 #if defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)
     if (dCert->issuerName != NULL) {
-        wolfSSL_X509_set_issuer_name(x509,
-                (WOLFSSL_X509_NAME*)dCert->issuerName);
+        FreeX509Name(&x509->issuer);
+        InitX509Name(&x509->issuer, 0, x509->heap);
+        if (wolfssl_x509_name_move(&x509->issuer,
+                (WOLFSSL_X509_NAME*)dCert->issuerName) != WOLFSSL_SUCCESS) {
+            ret = MEMORY_E;
+        }
         x509->issuer.x509 = x509;
+        x509->issuerSet = 1;
     }
 #endif /* OPENSSL_EXTRA || OPENSSL_EXTRA_X509_SMALL */
     CopyDecodedName(&x509->subject, dCert, ASN_SUBJECT);
 #if defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)
     if (dCert->subjectName != NULL) {
-        wolfSSL_X509_set_subject_name(x509,
-                (WOLFSSL_X509_NAME*)dCert->subjectName);
+        FreeX509Name(&x509->subject);
+        InitX509Name(&x509->subject, 0, x509->heap);
+        if (wolfssl_x509_name_move(&x509->subject,
+                (WOLFSSL_X509_NAME*)dCert->subjectName) != WOLFSSL_SUCCESS) {
+            ret = MEMORY_E;
+        }
         x509->subject.x509 = x509;
     }
 #endif /* OPENSSL_EXTRA || OPENSSL_EXTRA_X509_SMALL */
@@ -16385,6 +16335,46 @@ int CopyDecodedToX509(WOLFSSL_X509* x509, DecodedCert* dCert)
 
     return ret;
 }
+
+#ifdef KEEP_PEER_CERT
+/* Drops the peer certificate held by the connection. */
+void FreePeerCert(WOLFSSL* ssl)
+{
+#ifdef WOLFSSL_DYNAMIC_PEER_CERT
+    wolfSSL_X509_free(ssl->peerCert);
+    ssl->peerCert = NULL;
+#else
+    FreeX509(&ssl->peerCert);
+    InitX509(&ssl->peerCert, 0, ssl->heap);
+#endif
+}
+
+/* Makes dCert the connection's peer certificate. A reference handed out
+ * from a previous object stays valid: the new object is built first and
+ * the old one released. */
+int SetPeerCert(WOLFSSL* ssl, DecodedCert* dCert)
+{
+    int ret;
+#ifdef WOLFSSL_DYNAMIC_PEER_CERT
+    WOLFSSL_X509* x509 = wolfSSL_X509_new_ex(ssl->heap);
+
+    if (x509 == NULL) {
+        FreePeerCert(ssl);
+        return MEMORY_E;
+    }
+    /* As with the embedded object, whatever was copied before an error is
+     * kept. */
+    ret = CopyDecodedToX509(x509, dCert);
+    wolfSSL_X509_free(ssl->peerCert);
+    ssl->peerCert = x509;
+#else
+    FreeX509(&ssl->peerCert);
+    InitX509(&ssl->peerCert, 0, ssl->heap);
+    ret = CopyDecodedToX509(&ssl->peerCert, dCert);
+#endif
+    return ret;
+}
+#endif /* KEEP_PEER_CERT */
 
 #endif /* KEEP_PEER_CERT || SESSION_CERTS */
 
@@ -17004,11 +16994,14 @@ int SetupStoreCtxCallback(WOLFSSL_X509_STORE_CTX** store_pt,
 #if defined(OPENSSL_EXTRA) || defined(OPENSSL_EXTRA_X509_SMALL)
     #ifdef KEEP_PEER_CERT
         if (args->certIdx == 0) {
-            FreeX509(&ssl->peerCert);
-            InitX509(&ssl->peerCert, 0, ssl->heap);
-            if (CopyDecodedToX509(&ssl->peerCert, args->dCert) != 0)
-                WOLFSSL_MSG("Unable to copy to ssl->peerCert");
-            store->current_cert = &ssl->peerCert; /* use existing X509 */
+            if (!args->peerCertSet) {
+                if (SetPeerCert(ssl, args->dCert) != 0)
+                    WOLFSSL_MSG("Unable to copy to ssl->peerCert");
+                args->peerCertSet = 1;
+            }
+            store->current_cert = GetPeerCert(ssl); /* use existing X509 */
+            if (store->current_cert == NULL)
+                goto mem_error;
         }
         else
     #endif
@@ -17081,6 +17074,21 @@ void CleanupStoreCtxCallback(WOLFSSL_X509_STORE_CTX* store,
  * store->error_depth member to determine index (0=peer, >1 intermediates)
  */
 
+/* Whether a certificate verify callback that receives an X509 is set on
+ * the connection, its context or its store. */
+static int SslVerifyCbSet(WOLFSSL* ssl)
+{
+    return (ssl->verifyCallback != NULL)
+    #ifdef OPENSSL_ALL
+        || (ssl->ctx->verifyCertCb != NULL)
+    #endif
+    #if defined(WOLFSSL_LOCAL_X509_STORE) && \
+        (defined(OPENSSL_ALL) || defined(WOLFSSL_QT))
+        || (SSL_STORE(ssl) != NULL && SSL_STORE(ssl)->verify_cb != NULL)
+    #endif
+        ;
+}
+
 int DoVerifyCallback(WOLFSSL_CERT_MANAGER* cm, WOLFSSL* ssl, int cert_err,
                                                         ProcPeerCertArgs* args)
 {
@@ -17117,15 +17125,7 @@ int DoVerifyCallback(WOLFSSL_CERT_MANAGER* cm, WOLFSSL* ssl, int cert_err,
     }
 #endif
     /* if verify callback has been set */
-    if ((use_cb && (ssl != NULL) && ((ssl->verifyCallback != NULL)
-    #ifdef OPENSSL_ALL
-        || (ssl->ctx->verifyCertCb != NULL)
-    #endif
-    #if defined(WOLFSSL_LOCAL_X509_STORE) && \
-        (defined(OPENSSL_ALL) || defined(WOLFSSL_QT))
-        || (SSL_STORE(ssl) != NULL && SSL_STORE(ssl)->verify_cb != NULL)
-    #endif
-        ))
+    if ((use_cb && (ssl != NULL) && SslVerifyCbSet(ssl))
     #ifndef NO_WOLFSSL_CM_VERIFY
         || (cm->verifyCallback != NULL)
     #endif
@@ -17718,6 +17718,21 @@ PRAGMA_GCC_DIAG_POP
     #endif
 
         InitDecodedCert(args->dCert, cert->buffer, cert->length, ssl->heap);
+    #if defined(WOLFSSL_X509_NAME_AVAILABLE) && \
+        !(defined(OPENSSL_ALL) && defined(WOLFSSL_CERT_GEN) && \
+          (defined(WOLFSSL_CERT_REQ) || defined(WOLFSSL_CERT_EXT)) && \
+          !defined(NO_FILESYSTEM) && !defined(NO_WOLFSSL_DIR) && \
+          !defined(NO_STDIO_FILESYSTEM))
+        /* A chain cert's names are only read by a verify callback (through
+         * the store's current cert) or by the hash-dir issuer lookup. */
+        if ((certType != CERT_TYPE) && (!SslVerifyCbSet(ssl))
+        #ifndef NO_WOLFSSL_CM_VERIFY
+            && (SSL_CM(ssl)->verifyCallback == NULL)
+        #endif
+            ) {
+            args->dCert->noX509Name = 1;
+        }
+    #endif
 
         args->dCertInit = 1;
         args->dCert->sigCtx.devId = ssl->devId;
@@ -20411,13 +20426,12 @@ int ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx,
             #endif /* HAVE_OCSP || HAVE_CRL */
 
             #ifdef KEEP_PEER_CERT
-                if (args->fatal == 0) {
-                    int copyRet = 0;
+                /* A verify callback on a parse error has already copied it. */
+                if ((args->fatal == 0) && (!args->peerCertSet)) {
+                    int copyRet = SetPeerCert(ssl, args->dCert);
 
-                    /* free old peer cert */
-                    FreeX509(&ssl->peerCert);
-                    InitX509(&ssl->peerCert, 0, ssl->heap);
-                    copyRet = CopyDecodedToX509(&ssl->peerCert, args->dCert);
+                    /* The names moved out of dCert either way. */
+                    args->peerCertSet = 1;
                     if (copyRet == WC_NO_ERR_TRACE(MEMORY_E)) {
                         args->fatal = 1;
                         ret = copyRet;
@@ -45051,14 +45065,25 @@ static int AddPSKtoPreMasterSecret(WOLFSSL* ssl)
         word16 peerCertSz = 0;
 #endif
 
-        WOLFSSL_ASSERT_GE(sizeof(ssl->session->staticTicket), WOLFSSL_TICKET_ENC_SZ);
-        WOLFSSL_ASSERT_SIZEOF_GE(ssl->session->staticTicket, *et);
-
-        if (ssl->session->ticket != ssl->session->staticTicket) {
-            /* Always use the static ticket buffer */
-            XFREE(ssl->session->ticket, NULL, DYNAMIC_TYPE_SESSION_TICK);
-            ssl->session->ticket = ssl->session->staticTicket;
-            ssl->session->ticketLenAlloc = 0;
+        /* The ticket is built in place in a buffer of the full size. */
+        if (sizeof(ssl->session->staticTicket) >= (size_t)SESSION_TICKET_LEN) {
+            if (ssl->session->ticket != ssl->session->staticTicket) {
+                XFREE(ssl->session->ticket, NULL, DYNAMIC_TYPE_SESSION_TICK);
+                ssl->session->ticket = ssl->session->staticTicket;
+                ssl->session->ticketLenAlloc = 0;
+            }
+        }
+        else if (ssl->session->ticketLenAlloc < SESSION_TICKET_LEN) {
+            byte* ticket = (byte*)XMALLOC(SESSION_TICKET_LEN, NULL,
+                DYNAMIC_TYPE_SESSION_TICK);
+            if (ticket == NULL) {
+                return MEMORY_E;
+            }
+            if (ssl->session->ticketLenAlloc > 0) {
+                XFREE(ssl->session->ticket, NULL, DYNAMIC_TYPE_SESSION_TICK);
+            }
+            ssl->session->ticket = ticket;
+            ssl->session->ticketLenAlloc = SESSION_TICKET_LEN;
         }
 
         et = (ExternalTicket*)ssl->session->ticket;
@@ -45160,11 +45185,12 @@ static int AddPSKtoPreMasterSecret(WOLFSSL* ssl)
             const byte* certDer = NULL;
             word32 certDerSz = 0;
 
-            if (ssl->peerCert.derCert != NULL &&
-                    ssl->peerCert.derCert->length > 0) {
+            if (GetPeerCert(ssl) != NULL &&
+                    GetPeerCert(ssl)->derCert != NULL &&
+                    GetPeerCert(ssl)->derCert->length > 0) {
                 /* Use current peer certificate */
-                certDer = ssl->peerCert.derCert->buffer;
-                certDerSz = ssl->peerCert.derCert->length;
+                certDer = GetPeerCert(ssl)->derCert->buffer;
+                certDerSz = GetPeerCert(ssl)->derCert->length;
             }
 #ifdef SESSION_CERTS
             else if (ssl->session->chain.count > 0) {
@@ -45538,8 +45564,7 @@ static int AddPSKtoPreMasterSecret(WOLFSSL* ssl)
 
         /* Clear any peer cert state that may have been copied from the session
          * cache by wolfSSL_DupSession before we got here. */
-        FreeX509(&ssl->peerCert);
-        InitX509(&ssl->peerCert, 0, ssl->heap);
+        FreePeerCert(ssl);
 #ifdef SESSION_CERTS
         ssl->session->chain.count = 0;
 #endif
@@ -45577,12 +45602,9 @@ static int AddPSKtoPreMasterSecret(WOLFSSL* ssl)
                     AddSessionCertToChain(&ssl->session->chain,
                                           it->peerCert, peerCertLen);
             #endif
-                    FreeX509(&ssl->peerCert);
-                    InitX509(&ssl->peerCert, 0, ssl->heap);
-                    ret = CopyDecodedToX509(&ssl->peerCert, dCert);
+                    ret = SetPeerCert(ssl, dCert);
                     if (ret != 0) {
-                        FreeX509(&ssl->peerCert);
-                        InitX509(&ssl->peerCert, 0, ssl->heap);
+                        FreePeerCert(ssl);
                     }
                 }
                 FreeDecodedCert(dCert);

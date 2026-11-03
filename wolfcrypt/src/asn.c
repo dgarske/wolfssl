@@ -16193,7 +16193,7 @@ static int GetCertName(DecodedCert* cert, char* full, byte* hash, int nameType,
     CALLOC_ASNGETDATA(dataASN, rdnASN_Length, ret, cert->heap);
 
 #ifdef WOLFSSL_X509_NAME_AVAILABLE
-    if (ret == 0) {
+    if ((ret == 0) && (!cert->noX509Name)) {
         /* Create an X509_NAME to hold data for OpenSSL compatibility APIs. */
         dName = wolfSSL_X509_NAME_new_ex(cert->heap);
         if (dName == NULL) {
@@ -16296,7 +16296,7 @@ static int GetCertName(DecodedCert* cert, char* full, byte* hash, int nameType,
 
 #ifdef WOLFSSL_X509_NAME_AVAILABLE
         /* Store X509_NAME in certificate. */
-        if (nameType == ASN_ISSUER) {
+        if ((dName != NULL) && (nameType == ASN_ISSUER)) {
         #if (defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX) || \
              defined(HAVE_LIGHTY)) && \
             (defined(HAVE_PKCS7) || defined(WOLFSSL_CERT_EXT))
@@ -16306,7 +16306,7 @@ static int GetCertName(DecodedCert* cert, char* full, byte* hash, int nameType,
         #endif
             cert->issuerName = dName;
         }
-        else {
+        else if (dName != NULL) {
         #if defined(OPENSSL_ALL) || defined(WOLFSSL_NGINX)
             dName->rawLen = (int)min((word32)cert->subjectRawLen,
                 WC_ASN_NAME_MAX);

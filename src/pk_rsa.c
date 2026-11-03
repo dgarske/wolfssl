@@ -285,36 +285,6 @@ WOLFSSL_RSA* wolfSSL_RSA_new_ex(void* heap, int devId)
             rsaKeyInited = 1;
         }
     }
-    #if !defined(HAVE_FIPS) && defined(WC_RSA_BLINDING)
-    if (!err) {
-        WC_RNG* rng;
-
-        /* Create a local RNG. */
-        rng = (WC_RNG*)XMALLOC(sizeof(WC_RNG), heap, DYNAMIC_TYPE_RNG);
-        if ((rng != NULL) && (wc_InitRng_ex(rng, heap, devId) != 0)) {
-            WOLFSSL_MSG("InitRng failure, attempting to use global RNG");
-            XFREE(rng, heap, DYNAMIC_TYPE_RNG);
-            rng = NULL;
-        }
-
-        rsa->ownRng = 1;
-        if (rng == NULL) {
-            /* Get the wolfSSL global RNG - not thread safe. */
-            rng = wolfssl_get_global_rng();
-            rsa->ownRng = 0;
-        }
-        if (rng == NULL) {
-            /* Couldn't create global either. */
-            WOLFSSL_ERROR_MSG("wolfSSL_RSA_new no WC_RNG for blinding");
-            err = 1;
-        }
-        else {
-            /* Set the local or global RNG into the wolfCrypt RSA key. */
-            (void)wc_RsaSetRNG(key, rng);
-            /* Won't fail as key and rng are not NULL. */
-        }
-    }
-    #endif /* !HAVE_FIPS && WC_RSA_BLINDING */
     if (!err) {
         /* Set wolfCrypt RSA key into RSA key. */
         rsa->internal = key;
@@ -324,7 +294,6 @@ WOLFSSL_RSA* wolfSSL_RSA_new_ex(void* heap, int devId)
 
     if (err) {
         /* Dispose of any allocated data on error. */
-        /* No failure after RNG allocation - no need to free RNG. */
         if (rsaKeyInited) {
             wc_FreeRsaKey(key);
         }
@@ -2405,6 +2374,53 @@ int wolfSSL_RSA_check_key(const WOLFSSL_RSA* rsa)
  * @return  A wolfCrypt RNG to use on success.
  * @return  NULL on error.
  */
+#if !defined(HAVE_FIPS) && defined(WC_RSA_BLINDING)
+/* Gives the wolfCrypt RSA key an RNG for blinding: a local one, or the
+ * global RNG when that cannot be created. Done on the first private
+ * operation so public keys never pay for a DRBG.
+ *
+ * @param [in, out] rsa  RSA key.
+ * @return  1 when the key has an RNG.
+ * @return  0 when no RNG is available.
+ */
+static int wolfssl_rsa_set_rng(WOLFSSL_RSA* rsa)
+{
+    RsaKey* key = (RsaKey*)rsa->internal;
+    WC_RNG* rng;
+    int devId = INVALID_DEVID;
+
+    if (key->rng != NULL) {
+        return 1;
+    }
+
+#ifdef WOLF_CRYPTO_CB
+    devId = key->devId;
+#endif
+    /* Create a local RNG. */
+    rng = (WC_RNG*)XMALLOC(sizeof(WC_RNG), rsa->heap, DYNAMIC_TYPE_RNG);
+    if ((rng != NULL) && (wc_InitRng_ex(rng, rsa->heap, devId) != 0)) {
+        WOLFSSL_MSG("InitRng failure, attempting to use global RNG");
+        XFREE(rng, rsa->heap, DYNAMIC_TYPE_RNG);
+        rng = NULL;
+    }
+
+    rsa->ownRng = 1;
+    if (rng == NULL) {
+        /* Get the wolfSSL global RNG - not thread safe. */
+        rng = wolfssl_get_global_rng();
+        rsa->ownRng = 0;
+    }
+    if (rng == NULL) {
+        WOLFSSL_ERROR_MSG("wolfSSL_RSA no WC_RNG for blinding");
+        return 0;
+    }
+    /* Won't fail as key and rng are not NULL. */
+    (void)wc_RsaSetRNG(key, rng);
+
+    return 1;
+}
+#endif /* !HAVE_FIPS && WC_RSA_BLINDING */
+
 WC_RNG* WOLFSSL_RSA_GetRNG(WOLFSSL_RSA* rsa, WC_RNG** tmpRng, int* initTmpRng)
 {
     WC_RNG* rng = NULL;
@@ -2420,7 +2436,9 @@ WC_RNG* WOLFSSL_RSA_GetRNG(WOLFSSL_RSA* rsa, WC_RNG** tmpRng, int* initTmpRng)
 
     #if !defined(HAVE_FIPS) && defined(WC_RSA_BLINDING)
         /* Use wolfCrypt RSA key's RNG if available/set. */
-        rng = ((RsaKey*)rsa->internal)->rng;
+        if (wolfssl_rsa_set_rng(rsa)) {
+            rng = ((RsaKey*)rsa->internal)->rng;
+        }
     #endif
     }
     if ((!err) && (rng == NULL) && (tmpRng != NULL)) {
@@ -3637,6 +3655,12 @@ int wolfSSL_RSA_private_decrypt(int len, const unsigned char* from,
             ret = WOLFSSL_FATAL_ERROR;
         }
     }
+
+#if !defined(HAVE_FIPS) && defined(WC_RSA_BLINDING)
+    if ((ret == 0) && (!wolfssl_rsa_set_rng(rsa))) {
+        ret = WOLFSSL_FATAL_ERROR;
+    }
+#endif
 
     if (ret == 0) {
         /* Use wolfCrypt to private-decrypt with RSA key.
