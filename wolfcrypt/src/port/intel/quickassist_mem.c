@@ -619,10 +619,9 @@ void* IntelQaRealloc(void *ptr, size_t size, void* heap, int type
                 copySize = size;
             XMEMCPY(newPtr, ptr, copySize);
 
-            if (ptrIsNuma == 0) {
-                /* old pointer is a qae-headed non-NUMA buffer (software
-                 * fallback) -- free it. Caller-owned (ptrIsNuma == -1) and
-                 * NUMA (== 1) buffers are handled by their own paths. */
+            if (newIsNuma == 0 && ptrIsNuma == 0) {
+                /* for non-NUMA, treat as normal REALLOC and free old pointer.
+                 * A NUMA request is a DMA copy of a buffer the caller keeps. */
                 _qaeMemFree(ptr, heap, type
                 #ifdef WOLFSSL_DEBUG_MEMORY
                     , func, line
