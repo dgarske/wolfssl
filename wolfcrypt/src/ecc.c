@@ -18025,11 +18025,29 @@ int wc_X963_KDF(enum wc_HashType type, const byte* secret, word32 secretSz,
     if (secret == NULL || secretSz == 0 || out == NULL)
         return BAD_FUNC_ARG;
 
-    /* X9.63 allowed algos only */
+    /* Fixed-length digests only: the construction concatenates whole digest
+     * blocks, so an extendable-output function has no defined block size
+     * here. SHA-1 and the SHA-2 family are the algorithms X9.63 and SEC1
+     * name; SHA-3 and SM3 are accepted as well because the counter
+     * construction is hash agnostic and callers derive keys for those
+     * algorithms too. */
     if (type != WC_HASH_TYPE_SHA    && type != WC_HASH_TYPE_SHA224 &&
         type != WC_HASH_TYPE_SHA256 && type != WC_HASH_TYPE_SHA384 &&
-        type != WC_HASH_TYPE_SHA512)
+        type != WC_HASH_TYPE_SHA512
+    /* The extra digests are not part of any validated module, so a FIPS
+     * build keeps exactly the X9.63 and SEC1 algorithm list. */
+    #if defined(WOLFSSL_SHA3) && !defined(HAVE_SELFTEST) && \
+        !defined(HAVE_FIPS)
+        && type != WC_HASH_TYPE_SHA3_224 && type != WC_HASH_TYPE_SHA3_256
+        && type != WC_HASH_TYPE_SHA3_384 && type != WC_HASH_TYPE_SHA3_512
+    #endif
+    #if defined(WOLFSSL_SM3) && !defined(HAVE_SELFTEST) && \
+        !defined(HAVE_FIPS)
+        && type != WC_HASH_TYPE_SM3
+    #endif
+        ) {
         return BAD_FUNC_ARG;
+    }
 
     ret = wc_HashGetDigestSize(type);
     if (ret < 0)

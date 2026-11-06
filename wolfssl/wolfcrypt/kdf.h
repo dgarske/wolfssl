@@ -196,6 +196,15 @@ WOLFSSL_API int wc_KDA_KDF_PRF_cmac(const byte* Kin, word32 KinSz,
                                     void* heap, int devId);
 #endif /* HAVE_CMAC_KDF */
 
+#if !defined(NO_HASH_WRAPPER) && !defined(HAVE_SELFTEST) && \
+    !defined(HAVE_FIPS)
+/* KDF2 from ISO/IEC 18033-2: T_i = Hash(z || I2OSP(i, 4)), counter from 1.
+ * Any hash wolfCrypt implements may be used. See also wc_X963_KDF(), which
+ * is the same construction with a trailing SharedInfo field. */
+WOLFSSL_API int wc_KDF2(enum wc_HashType hashType, const byte* z, word32 zSz,
+                        byte* out, word32 outSz);
+#endif /* !NO_HASH_WRAPPER && !HAVE_SELFTEST && !HAVE_FIPS */
+
 #ifdef __cplusplus
     } /* extern "C" */
 #endif
