@@ -947,6 +947,10 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t  sshkdf_test(void);
 WOLFSSL_TEST_SUBROUTINE wc_test_ret_t  tls13_kdf_test(void);
 #endif
 WOLFSSL_TEST_SUBROUTINE wc_test_ret_t  x963kdf_test(void);
+#if !defined(NO_KDF) && !defined(NO_HASH_WRAPPER) && \
+    !defined(HAVE_SELFTEST) && !defined(HAVE_FIPS)
+WOLFSSL_TEST_SUBROUTINE wc_test_ret_t  kdf2_test(void);
+#endif
 #if defined(HAVE_HPKE) && \
     (defined(HAVE_ECC) || defined(HAVE_CURVE25519) || \
         defined(HAVE_CURVE448)) && \
@@ -3162,6 +3166,14 @@ options: [-s max_relative_stack_bytes] [-m max_relative_heap_memory_bytes]\n\
         TEST_FAIL("X963-KDF    test failed!\n", ret);
     else
         TEST_PASS("X963-KDF    test passed!\n");
+#endif
+
+#if !defined(NO_KDF) && !defined(NO_HASH_WRAPPER) && \
+    !defined(HAVE_SELFTEST) && !defined(HAVE_FIPS)
+    if ( (ret = kdf2_test()) != 0)
+        TEST_FAIL("KDF2        test failed!\n", ret);
+    else
+        TEST_PASS("KDF2        test passed!\n");
 #endif
 
 #if defined(HAVE_HPKE) && \
@@ -51319,10 +51331,134 @@ WOLFSSL_TEST_SUBROUTINE wc_test_ret_t x963kdf_test(void)
         return WC_TEST_RET_ENC_NC;
 #endif
 
+#if defined(WOLFSSL_SHA3) && !defined(HAVE_SELFTEST) && !defined(HAVE_FIPS)
+    {
+        /* SHA-3 is outside the algorithms X9.63 names, but the counter
+         * construction is hash agnostic, so it is accepted. With no shared
+         * info this is KDF2, so the expected value is
+         * SHA3-256("abc" || 00000001). */
+        WOLFSSL_SMALL_STACK_STATIC const byte verify5[] = {
+            0x46, 0xCB, 0x02, 0x49, 0x5B, 0x0A, 0xAD, 0x1D,
+            0x9D, 0x9A, 0xE2, 0x51, 0x44, 0xFF, 0x4A, 0xD7,
+            0x9A, 0xB3, 0x97, 0x07, 0xB0, 0x0D, 0xF9, 0xAC,
+            0x4E, 0x34, 0x54, 0x44, 0x7C, 0xA5, 0x4A, 0x26
+        };
+
+        ret = wc_X963_KDF(WC_HASH_TYPE_SHA3_256, (const byte*)"abc", 3,
+                          NULL, 0, kek, sizeof(verify5));
+        if (ret != 0)
+            return WC_TEST_RET_ENC_EC(ret);
+
+        if (XMEMCMP(verify5, kek, sizeof(verify5)) != 0)
+            return WC_TEST_RET_ENC_NC;
+    }
+#endif
+
+    /* An extendable-output function has no fixed digest block here and is
+     * still refused. */
+#ifdef WOLFSSL_SHAKE256
+    ret = wc_X963_KDF(WC_HASH_TYPE_SHAKE256, (const byte*)"abc", 3, NULL, 0,
+                      kek, 32);
+    if (ret != BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+#endif
+
     return 0;
 }
 
 #endif /* HAVE_X963_KDF */
+
+#if !defined(NO_KDF) && !defined(NO_HASH_WRAPPER) && \
+    !defined(HAVE_SELFTEST) && !defined(HAVE_FIPS)
+
+WOLFSSL_TEST_SUBROUTINE wc_test_ret_t kdf2_test(void)
+{
+    wc_test_ret_t ret;
+    byte out[48];
+
+#ifndef NO_SHA
+    /* KDF2 is X9.63 with an empty SharedInfo, so a published X9.63 vector
+     * whose SharedInfo length is zero is also a KDF2 vector.
+     * SHA-1, COUNT = 0, shared secret 192 bits, key data 128 bits. */
+    WOLFSSL_SMALL_STACK_STATIC const byte Z[] = {
+        0x1c, 0x7d, 0x7b, 0x5f, 0x05, 0x97, 0xb0, 0x3d,
+        0x06, 0xa0, 0x18, 0x46, 0x6e, 0xd1, 0xa9, 0x3e,
+        0x30, 0xed, 0x4b, 0x04, 0xdc, 0x64, 0xcc, 0xdd
+    };
+    WOLFSSL_SMALL_STACK_STATIC const byte verify[] = {
+        0xbf, 0x71, 0xdf, 0xfd, 0x8f, 0x4d, 0x99, 0x22,
+        0x39, 0x36, 0xbe, 0xb4, 0x6f, 0xee, 0x8c, 0xcc
+    };
+#endif
+
+#ifndef NO_SHA256
+    /* Z = "abc" with SHA-256 over two counter blocks, so
+     * out = SHA256("abc" || 00000001) || SHA256("abc" || 00000002)
+     * truncated to 48 octets. Checkable by hand against any SHA-256. */
+    WOLFSSL_SMALL_STACK_STATIC const byte verify2[] = {
+        0x46, 0xC3, 0x86, 0xEB, 0xCC, 0xEF, 0x82, 0xBA,
+        0x0B, 0xB0, 0xB0, 0x95, 0xAA, 0xA5, 0x54, 0x8B,
+        0x03, 0xCD, 0xFF, 0x69, 0x51, 0x87, 0x1C, 0x6F,
+        0xB5, 0x05, 0xAF, 0x68, 0xAF, 0x68, 0x83, 0x32,
+        0xF8, 0x85, 0xD3, 0x24, 0xA4, 0x7D, 0x21, 0x45,
+        0xA3, 0xD8, 0x39, 0x2C, 0x37, 0x97, 0x8D, 0x7D
+    };
+#endif
+
+#ifndef NO_SHA
+    ret = wc_KDF2(WC_HASH_TYPE_SHA, Z, (word32)sizeof(Z), out,
+                  (word32)sizeof(verify));
+    if (ret != 0)
+        return WC_TEST_RET_ENC_EC(ret);
+    if (XMEMCMP(verify, out, sizeof(verify)) != 0)
+        return WC_TEST_RET_ENC_NC;
+#endif
+
+#ifndef NO_SHA256
+    /* A single block, then two blocks, to cover the truncation path. */
+    ret = wc_KDF2(WC_HASH_TYPE_SHA256, (const byte*)"abc", 3, out, 32);
+    if (ret != 0)
+        return WC_TEST_RET_ENC_EC(ret);
+    if (XMEMCMP(verify2, out, 32) != 0)
+        return WC_TEST_RET_ENC_NC;
+
+    ret = wc_KDF2(WC_HASH_TYPE_SHA256, (const byte*)"abc", 3, out,
+                  (word32)sizeof(verify2));
+    if (ret != 0)
+        return WC_TEST_RET_ENC_EC(ret);
+    if (XMEMCMP(verify2, out, sizeof(verify2)) != 0)
+        return WC_TEST_RET_ENC_NC;
+
+    /* ISO/IEC 18033-2 places no restriction on the hash, so a digest the
+     * X9.63 entry point rejects must still work here. */
+#ifdef WOLFSSL_SHA3
+    ret = wc_KDF2(WC_HASH_TYPE_SHA3_256, (const byte*)"abc", 3, out, 32);
+    if (ret != 0)
+        return WC_TEST_RET_ENC_EC(ret);
+#endif
+
+    /* Bad arguments */
+    if (wc_KDF2(WC_HASH_TYPE_SHA256, NULL, 3, out, 32) != BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+    if (wc_KDF2(WC_HASH_TYPE_SHA256, (const byte*)"abc", 0, out, 32) !=
+            BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+    if (wc_KDF2(WC_HASH_TYPE_SHA256, (const byte*)"abc", 3, NULL, 32) !=
+            BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+    if (wc_KDF2(WC_HASH_TYPE_SHA256, (const byte*)"abc", 3, out, 0) !=
+            BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+    if (wc_KDF2(WC_HASH_TYPE_NONE, (const byte*)"abc", 3, out, 32) !=
+            BAD_FUNC_ARG)
+        return WC_TEST_RET_ENC_NC;
+#endif /* !NO_SHA256 */
+
+    (void)out;
+    return 0;
+}
+
+#endif /* !NO_KDF && !NO_HASH_WRAPPER && !HAVE_SELFTEST && !HAVE_FIPS */
 
 #if defined(HAVE_HPKE) && \
     (defined(HAVE_ECC) || defined(HAVE_CURVE25519) || \

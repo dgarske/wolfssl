@@ -1891,4 +1891,92 @@ int wc_KDA_KDF_PRF_cmac(const byte* Kin, word32 KinSz,
 }
 #endif /* HAVE_CMAC_KDF */
 
+/* kdf.c is inside the FIPS module boundary, which fips-check.sh pins to a
+ * validated tag, and this function is in no validated module. Exclude it
+ * from FIPS builds rather than add to the boundary unvalidated. */
+#if !defined(NO_HASH_WRAPPER) && !defined(HAVE_SELFTEST) && \
+    !defined(HAVE_FIPS)
+/* KDF2 from ISO/IEC 18033-2, also KDF1 in ANSI X9.44 and the key derivation
+ * used by GB/T 32918.4 SM2 encryption and TPM 2.0 TPM_ALG_KDF2.
+ *
+ *     KDF2(Z, len) = T_1 || T_2 || ... truncated to len
+ *     T_i = Hash(Z || I2OSP(i, 4))     for i = 1, 2, ...
+ *
+ * The counter is four octets, big-endian, and starts at one. ISO/IEC 18033-2
+ * places no restriction on the hash, so any digest wolfCrypt implements is
+ * accepted.
+ *
+ * This is the same construction as wc_X963_KDF() called with no shared info,
+ * which remains available for the X9.63 and SEC1 cases that need the trailing
+ * SharedInfo field and are restricted to the SHA family.
+ *
+ * returns 0 on success, or a negative error.
+ */
+int wc_KDF2(enum wc_HashType hashType, const byte* z, word32 zSz,
+    byte* out, word32 outSz)
+{
+    int ret;
+    word32 digestSz;
+    word32 done = 0;
+    word32 counter = 1;
+    byte ctrBuf[4];
+    byte digest[WC_MAX_DIGEST_SIZE];
+    wc_HashAlg hash;
+
+    if (z == NULL || zSz == 0 || out == NULL || outSz == 0) {
+        return BAD_FUNC_ARG;
+    }
+
+    ret = wc_HashGetDigestSize(hashType);
+    if (ret <= 0) {
+        return BAD_FUNC_ARG;
+    }
+    digestSz = (word32)ret;
+
+    while (done < outSz) {
+        word32 copySz;
+
+        /* I2OSP(counter, 4) */
+        ctrBuf[0] = (byte)(counter >> 24);
+        ctrBuf[1] = (byte)(counter >> 16);
+        ctrBuf[2] = (byte)(counter >> 8);
+        ctrBuf[3] = (byte)(counter);
+
+        ret = wc_HashInit(&hash, hashType);
+        if (ret != 0) {
+            break;
+        }
+        ret = wc_HashUpdate(&hash, hashType, z, zSz);
+        if (ret == 0) {
+            ret = wc_HashUpdate(&hash, hashType, ctrBuf, sizeof(ctrBuf));
+        }
+        if (ret == 0) {
+            ret = wc_HashFinal(&hash, hashType, digest);
+        }
+        wc_HashFree(&hash, hashType);
+        if (ret != 0) {
+            break;
+        }
+
+        copySz = outSz - done;
+        if (copySz > digestSz) {
+            copySz = digestSz;
+        }
+        XMEMCPY(out + done, digest, copySz);
+        done += copySz;
+
+        /* Four octets of counter cannot derive more than 2^32 - 1 blocks. */
+        if (counter == 0xFFFFFFFFU && done < outSz) {
+            ret = BAD_FUNC_ARG;
+            break;
+        }
+        counter++;
+    }
+
+    ForceZero(digest, sizeof(digest));
+
+    return ret;
+}
+#endif /* !NO_HASH_WRAPPER && !HAVE_SELFTEST && !HAVE_FIPS */
+
 #endif /* NO_KDF */
