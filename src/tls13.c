@@ -8795,7 +8795,7 @@ int DoTls13ClientHello(WOLFSSL* ssl, const byte* input, word32* inOutIdx,
         KeyShareEntry* serverKSE = (KeyShareEntry*)extension->data;
         if (serverKSE != NULL &&
             serverKSE->lastRet == WC_NO_ERR_TRACE(WC_PENDING_E)) {
-    #if defined(WOLFSSL_HAVE_MLKEM)
+    #if defined(WOLFSSL_HAVE_MLKEM) && !defined(WOLFSSL_MLKEM_NO_ENCAPSULATE)
             if (WOLFSSL_NAMED_GROUP_IS_PQC_HYBRID(serverKSE->group)) {
                 ret = TLSX_KeyShare_HandlePqcHybridKeyServer(ssl, serverKSE,
                         serverKSE->ke, serverKSE->keLen);
@@ -12007,10 +12007,9 @@ static int SendTls13CertificateVerify(WOLFSSL* ssl)
         #endif /* HAVE_FALCON */
         #if defined(WOLFSSL_HAVE_MLDSA) && !defined(WOLFSSL_MLDSA_NO_SIGN)
             if (ssl->hsType == DYNAMIC_TYPE_MLDSA) {
-                ret = wc_MlDsaKey_SignCtx((wc_MlDsaKey*)ssl->hsKey, NULL, 0,
-                                          sigOut, &args->sigLen,
-                                          args->sigData, args->sigDataSz,
-                                          ssl->rng);
+                ret = MlDsaSign(ssl, args->sigData, args->sigDataSz,
+                                sigOut, &args->sigLen,
+                                (wc_MlDsaKey*)ssl->hsKey);
                 args->length = args->sigLen;
             }
         #endif /* WOLFSSL_HAVE_MLDSA */
@@ -12118,9 +12117,9 @@ static int SendTls13CertificateVerify(WOLFSSL* ssl)
             #endif /* HAVE_FALCON */
             #if defined(WOLFSSL_HAVE_MLDSA) && !defined(WOLFSSL_MLDSA_NO_SIGN)
                 if (ssl->hsAltType == DYNAMIC_TYPE_MLDSA) {
-                    ret = wc_MlDsaKey_SignCtx((wc_MlDsaKey*)ssl->hsAltKey,
-                                NULL, 0, sigOut, &args->altSigLen,
-                                args->altSigData, args->altSigDataSz, ssl->rng);
+                    ret = MlDsaSign(ssl, args->altSigData, args->altSigDataSz,
+                                    sigOut, &args->altSigLen,
+                                    (wc_MlDsaKey*)ssl->hsAltKey);
                 }
             #endif /* WOLFSSL_HAVE_MLDSA */
 
@@ -13539,13 +13538,12 @@ static int DoTls13CertificateVerify(WOLFSSL* ssl, byte* input,
                  (ssl->options.peerSigAlgo == mldsa_65_sa_algo) ||
                  (ssl->options.peerSigAlgo == mldsa_87_sa_algo)) &&
                 (ssl->peerMlDsaKeyPresent)) {
-                int res = 0;
                 WOLFSSL_MSG("Doing ML-DSA peer cert verify");
-                ret = wc_MlDsaKey_VerifyCtx(ssl->peerMlDsaKey, sig, args->sigSz,
-                                            NULL, 0, args->sigData,
-                                            args->sigDataSz, &res);
+                ret = MlDsaVerify(ssl, sig, args->sigSz,
+                                  args->sigData, args->sigDataSz,
+                                  ssl->peerMlDsaKey);
 
-                if ((ret >= 0) && (res == 1)) {
+                if (ret == 0) {
                     /* CLIENT/SERVER: data verified with public key from
                      * certificate. */
                     ssl->options.peerAuthGood = 1;
@@ -13554,9 +13552,8 @@ static int DoTls13CertificateVerify(WOLFSSL* ssl, byte* input,
                             (void**)&ssl->peerMlDsaKey);
                     ssl->peerMlDsaKeyPresent = 0;
                 }
-                else if ((ret >= 0) && (res == 0)) {
+                else if (ret == WC_NO_ERR_TRACE(SIG_VERIFY_E)) {
                     WOLFSSL_MSG("ML-DSA signature verification failed");
-                    ret = SIG_VERIFY_E;
                 }
             }
         #endif /* WOLFSSL_HAVE_MLDSA */
@@ -13694,14 +13691,12 @@ static int DoTls13CertificateVerify(WOLFSSL* ssl, byte* input,
                      (args->altSigAlgo == mldsa_65_sa_algo) ||
                      (args->altSigAlgo == mldsa_87_sa_algo)) &&
                     (ssl->peerMlDsaKeyPresent)) {
-                    int res = 0;
                     WOLFSSL_MSG("Doing ML-DSA peer cert alt verify");
-                    ret = wc_MlDsaKey_VerifyCtx(ssl->peerMlDsaKey, sig,
-                                        args->altSignatureSz, NULL, 0,
-                                        args->altSigData,
-                                        args->altSigDataSz, &res);
+                    ret = MlDsaVerify(ssl, sig, args->altSignatureSz,
+                                      args->altSigData, args->altSigDataSz,
+                                      ssl->peerMlDsaKey);
 
-                    if ((ret >= 0) && (res == 1)) {
+                    if (ret == 0) {
                         /* CLIENT/SERVER: data verified with public key from
                         * certificate. */
                         args->altPeerAuthGood = 1;
@@ -13710,9 +13705,8 @@ static int DoTls13CertificateVerify(WOLFSSL* ssl, byte* input,
                                             (void**)&ssl->peerMlDsaKey);
                         ssl->peerMlDsaKeyPresent = 0;
                     }
-                    else if ((ret >= 0) && (res == 0)) {
+                    else if (ret == WC_NO_ERR_TRACE(SIG_VERIFY_E)) {
                         WOLFSSL_MSG("ML-DSA signature verification failed");
-                        ret = SIG_VERIFY_E;
                     }
                 }
             #endif /* WOLFSSL_HAVE_MLDSA */

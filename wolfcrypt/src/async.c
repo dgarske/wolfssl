@@ -31,6 +31,9 @@
     defined(WOLF_CRYPTO_CB_ASYNC_POLL)
 #include <wolfssl/wolfcrypt/cryptocb.h>
 #endif
+#ifdef WOLFSSL_HAVE_MLKEM
+#include <wolfssl/wolfcrypt/wc_mlkem.h>
+#endif
 
 
 static WC_ASYNC_DEV* wolfAsync_GetDev(WOLF_EVENT* event)
@@ -303,6 +306,87 @@ static int wolfAsync_DoSw(WC_ASYNC_DEV* asyncDev)
             break;
         }
 #endif /* HAVE_CURVE25519 */
+#ifdef WOLFSSL_HAVE_MLDSA
+    #if !defined(WOLFSSL_MLDSA_VERIFY_ONLY) && \
+        !defined(WOLFSSL_MLDSA_NO_MAKE_KEY)
+        case ASYNC_SW_MLDSA_MAKE:
+        {
+            ret = wc_MlDsaKey_MakeKey(
+                (wc_MlDsaKey*)sw->mldsaMake.key,
+                (WC_RNG*)sw->mldsaMake.rng
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLDSA_VERIFY_ONLY && !WOLFSSL_MLDSA_NO_MAKE_KEY */
+    #if !defined(WOLFSSL_MLDSA_VERIFY_ONLY) && !defined(WOLFSSL_MLDSA_NO_SIGN)
+        case ASYNC_SW_MLDSA_SIGN:
+        {
+            ret = wc_MlDsaKey_SignCtx(
+                (wc_MlDsaKey*)sw->mldsaSign.key,
+                sw->mldsaSign.ctx,
+                sw->mldsaSign.ctxLen,
+                sw->mldsaSign.sig,
+                sw->mldsaSign.sigLen,
+                sw->mldsaSign.msg,
+                sw->mldsaSign.msgLen,
+                (WC_RNG*)sw->mldsaSign.rng
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLDSA_VERIFY_ONLY && !WOLFSSL_MLDSA_NO_SIGN */
+    #ifndef WOLFSSL_MLDSA_NO_VERIFY
+        case ASYNC_SW_MLDSA_VERIFY:
+        {
+            ret = wc_MlDsaKey_VerifyCtx(
+                (wc_MlDsaKey*)sw->mldsaVerify.key,
+                sw->mldsaVerify.sig,
+                sw->mldsaVerify.sigLen,
+                sw->mldsaVerify.ctx,
+                sw->mldsaVerify.ctxLen,
+                sw->mldsaVerify.msg,
+                sw->mldsaVerify.msgLen,
+                sw->mldsaVerify.res
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLDSA_NO_VERIFY */
+#endif /* WOLFSSL_HAVE_MLDSA */
+#ifdef WOLFSSL_HAVE_MLKEM
+    #ifndef WOLFSSL_MLKEM_NO_MAKE_KEY
+        case ASYNC_SW_MLKEM_MAKE:
+        {
+            ret = wc_MlKemKey_MakeKey(
+                (MlKemKey*)sw->mlkemMake.key,
+                (WC_RNG*)sw->mlkemMake.rng
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLKEM_NO_MAKE_KEY */
+    #ifndef WOLFSSL_MLKEM_NO_ENCAPSULATE
+        case ASYNC_SW_MLKEM_ENCAP:
+        {
+            ret = wc_MlKemKey_Encapsulate(
+                (MlKemKey*)sw->mlkemEncap.key,
+                sw->mlkemEncap.ct,
+                sw->mlkemEncap.ss,
+                (WC_RNG*)sw->mlkemEncap.rng
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLKEM_NO_ENCAPSULATE */
+    #ifndef WOLFSSL_MLKEM_NO_DECAPSULATE
+        case ASYNC_SW_MLKEM_DECAP:
+        {
+            ret = wc_MlKemKey_Decapsulate(
+                (MlKemKey*)sw->mlkemDecap.key,
+                sw->mlkemDecap.ss,
+                sw->mlkemDecap.ct,
+                sw->mlkemDecap.ctLen
+            );
+            break;
+        }
+    #endif /* !WOLFSSL_MLKEM_NO_DECAPSULATE */
+#endif /* WOLFSSL_HAVE_MLKEM */
         default:
             WOLFSSL_MSG("Invalid async crypt SW type!");
             ret = BAD_FUNC_ARG;
