@@ -12284,9 +12284,13 @@ int wc_AesGcmEncrypt(Aes* aes, byte* out, const byte* in, word32 sz,
 
 
 #ifdef STM32_CRYPTO_AES_GCM
-    return wc_AesGcmEncrypt_STM32(
-        aes, out, in, sz, iv, ivSz,
-        authTag, authTagSz, authIn, authInSz);
+    /* The HAL GCM path is only correct for a 96-bit IV; other IV lengths
+     * use the software GCM below (AES blocks still run on the HW). */
+    if (ivSz == GCM_NONCE_MID_SZ) {
+        return wc_AesGcmEncrypt_STM32(
+            aes, out, in, sz, iv, ivSz,
+            authTag, authTagSz, authIn, authInSz);
+    }
 #endif /* STM32_CRYPTO_AES_GCM */
 
 #if defined(WOLFSSL_PSOC6_CRYPTO)
@@ -13208,10 +13212,13 @@ int wc_AesGcmDecrypt(Aes* aes, byte* out, const byte* in, word32 sz,
 #endif /* WOLFSSL_STM32_BARE && STM32_CRYPTO && !WOLF_CRYPTO_CB_ONLY_AES */
 
 #ifdef STM32_CRYPTO_AES_GCM
-    /* The STM standard peripheral library API's doesn't support partial blocks */
-    return wc_AesGcmDecrypt_STM32(
-        aes, out, in, sz, iv, ivSz,
-        authTag, authTagSz, authIn, authInSz);
+    /* The HAL GCM path is only correct for a 96-bit IV; other IV lengths
+     * use the software GCM below (AES blocks still run on the HW). */
+    if (ivSz == GCM_NONCE_MID_SZ) {
+        return wc_AesGcmDecrypt_STM32(
+            aes, out, in, sz, iv, ivSz,
+            authTag, authTagSz, authIn, authInSz);
+    }
 #endif /* STM32_CRYPTO_AES_GCM */
 
 #if defined(WOLFSSL_PSOC6_CRYPTO)
