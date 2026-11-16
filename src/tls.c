@@ -11292,7 +11292,7 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
 }
 #endif /* WOLFSSL_HAVE_MLKEM && !WOLFSSL_MLKEM_NO_DECAPSULATE */
 
-/* Process the key share extension on the client side.
+/* Process the key share extension to calculate the shared secret.
  *
  * ssl            The SSL/TLS object.
  * keyShareEntry  The key share entry object to use to calculate shared secret.
@@ -11317,6 +11317,13 @@ static int TLSX_KeyShare_Process(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
         ret = TLSX_KeyShare_ProcessX25519(ssl, keyShareEntry);
     else if (keyShareEntry->group == WOLFSSL_ECC_X448)
         ret = TLSX_KeyShare_ProcessX448(ssl, keyShareEntry);
+#ifdef WOLFSSL_HAVE_MLKEM
+    /* The server derived its shared secret when it encapsulated. */
+    else if ((ssl->options.side == WOLFSSL_SERVER_END) &&
+             (WOLFSSL_NAMED_GROUP_IS_PQC(keyShareEntry->group) ||
+              WOLFSSL_NAMED_GROUP_IS_PQC_HYBRID(keyShareEntry->group)))
+        ret = 0;
+#endif
 #if defined(WOLFSSL_HAVE_MLKEM) && !defined(WOLFSSL_MLKEM_NO_DECAPSULATE)
     else if (WOLFSSL_NAMED_GROUP_IS_PQC(keyShareEntry->group))
         ret = TLSX_KeyShare_ProcessPqcClient(ssl, keyShareEntry);
